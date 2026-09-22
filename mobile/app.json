@@ -42,9 +42,23 @@
         "VIBRATE"
       ]
     },
+    "updates": {
+      "url": "https://u.expo.dev/20a6d2e4-b4c5-4717-b856-7029acba302e",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 1000
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "plugins": [
       "expo-router",
-      "expo-video"
+      "expo-video",
+      [
+        "expo-updates",
+        {
+          "username": "montreal25"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
