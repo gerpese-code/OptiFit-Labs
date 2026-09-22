@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "OptiFit Labs",
+    "slug": "optifit-labs",
+    "version": "1.0.18",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "optifitlabs",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#020503"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.gerpese.fitnessproapp",
+      "infoPlist": {
+        "NSCameraUsageDescription": "OptiFit Labs requiere acceso a la cámara para que puedas registrar fotos de tu progreso físico.",
+        "NSPhotoLibraryUsageDescription": "OptiFit Labs requiere acceso a tus fotos para que puedas seleccionar fotos de progreso.",
+        "UIBackgroundModes": [
+          "audio"
+        ]
+      }
+    },
+    "androidNavigationBar": {
+      "backgroundColor": "#020503",
+      "barStyle": "light-content"
+    },
+    "android": {
+      "package": "com.gerpese.fitnessproapp",
+      "versionCode": 19,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#020503"
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "VIBRATE"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-video"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "20a6d2e4-b4c5-4717-b856-7029acba302e"
+      },
+      "router": {
+        "origin": false
+      }
+    },
+    "owner": "montreal25"
+  }
+}

@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #020503;
+  --foreground: #f9fafb;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Gym LED ambient lighting overlay */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    /* Overhead Gym Ceiling LED Light Cones */
+    radial-gradient(ellipse 80% 40% at 50% -5%, rgba(0, 255, 135, 0.13) 0%, transparent 60%),
+    /* Right side ambient LED light reflection */
+    radial-gradient(circle at 100% 25%, rgba(16, 185, 129, 0.08) 0%, transparent 50%),
+    /* Bottom left floor reflection */
+    radial-gradient(circle at 0% 75%, rgba(5, 150, 105, 0.06) 0%, transparent 50%),
+    /* Gym rubber floor mat dot matrix texture */
+    radial-gradient(rgba(16, 185, 129, 0.04) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 28px 28px;
+}
+
+/* Custom scrollbar in gym dark & emerald */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #020503;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #0d2215;
+  border-radius: 9999px;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #10b981;
+}
+
+/* Gym LED Glowing Light Bars */
+.gym-led-bar {
+  position: relative;
+}
+.gym-led-bar::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #00ff87, transparent);
+  box-shadow: 0 0 12px #00ff87, 0 0 24px rgba(16, 185, 129, 0.5);
+  pointer-events: none;
+}
