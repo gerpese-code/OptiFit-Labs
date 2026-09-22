@@ -2,7 +2,7 @@
   "name": "OptiFit Labs",
   "short_name": "OptiFit",
   "description": "Plataforma de entrenamiento, nutrición y biohacking para atletas.",
-  "start_url": "/download/ios",
+  "start_url": "/app/",
   "display": "standalone",
   "background_color": "#020503",
   "theme_color": "#020503",

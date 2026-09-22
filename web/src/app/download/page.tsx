@@ -183,6 +183,13 @@ export default function UniversalDownloadPage() {
                   </p>
                 </div>
               </div>
+
+              <a
+                href="/app/"
+                className="flex items-center justify-center gap-2 w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-sm shadow-lg shadow-cyan-500/25 transition-all text-center mt-4"
+              >
+                <span>🚀 Abrir App en Safari (Instalar) ➔</span>
+              </a>
             </div>
           </div>
         )}

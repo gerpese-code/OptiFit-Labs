@@ -154,6 +154,13 @@ export default function IosInstallPage() {
           </div>
         </div>
 
+        <a
+          href="/app/"
+          className="flex items-center justify-center gap-2 w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-sm shadow-lg shadow-cyan-500/25 transition-all text-center mb-6"
+        >
+          <span>🚀 Abrir App de Entrenamiento en Safari ➔</span>
+        </a>
+
         {/* BENEFICIOS DE LA APP EN IPHONE */}
         <div className="bg-[#020503] border border-emerald-500/20 rounded-2xl p-3.5 mb-6 text-xs space-y-1.5 text-gray-300">
           <div className="flex items-center gap-2 text-[#00ff87] font-bold text-[11px] uppercase tracking-wide">
