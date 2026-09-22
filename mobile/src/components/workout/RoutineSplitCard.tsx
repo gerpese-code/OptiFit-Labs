@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Flame, Dumbbell, Clock, ChevronRight, Sparkles, CheckCircle2 } from 'lucide-react-native';
+import { Flame, Dumbbell, Clock, ChevronRight, Sparkles, CheckCircle2, Edit3, Trash2 } from 'lucide-react-native';
 import { RoutineDay } from '@/types/database';
 import { useLanguage } from '@/context/LanguageContext';
 import { triggerHaptic } from '@/lib/userPreferences';
@@ -9,6 +9,8 @@ import { translateDayName, translateExerciseName } from '@/lib/workoutTranslator
 interface RoutineSplitCardProps {
   day: RoutineDay;
   onSelect: (day: RoutineDay) => void;
+  onEdit?: (day: RoutineDay) => void;
+  onDelete?: (day: RoutineDay) => void;
   completionCount?: number;
   lastCompletedAt?: string | null;
 }
@@ -16,6 +18,8 @@ interface RoutineSplitCardProps {
 export default function RoutineSplitCard({
   day,
   onSelect,
+  onEdit,
+  onDelete,
   completionCount = 0,
   lastCompletedAt,
 }: RoutineSplitCardProps) {
@@ -123,7 +127,7 @@ export default function RoutineSplitCard({
         </Text>
       ) : null}
 
-      {/* Pie de tarjeta: Última vez realizada y Botón Iniciar */}
+      {/* Pie de tarjeta: Última vez realizada y Botones de Acción */}
       <View style={styles.footerRow}>
         <View style={styles.lastTrainedContainer}>
           <Clock size={11} color="#9CA3AF" />
@@ -132,10 +136,40 @@ export default function RoutineSplitCard({
           </Text>
         </View>
 
-        <View style={styles.startBtn}>
-          <Text style={styles.startBtnText}>
-            {t('routines.start_routine_btn', 'Entrenar Rutina ➔')}
-          </Text>
+        <View style={styles.footerActionsRight}>
+          {onEdit && (
+            <TouchableOpacity
+              style={styles.cardActionIconBtn}
+              onPress={(e) => {
+                e.stopPropagation?.();
+                onEdit(day);
+              }}
+              activeOpacity={0.7}
+              accessibilityLabel="Modificar rutina"
+            >
+              <Edit3 size={13} color="#38bdf8" />
+            </TouchableOpacity>
+          )}
+
+          {onDelete && (
+            <TouchableOpacity
+              style={[styles.cardActionIconBtn, styles.cardActionDeleteBtn]}
+              onPress={(e) => {
+                e.stopPropagation?.();
+                onDelete(day);
+              }}
+              activeOpacity={0.7}
+              accessibilityLabel="Eliminar rutina"
+            >
+              <Trash2 size={13} color="#f87171" />
+            </TouchableOpacity>
+          )}
+
+          <View style={styles.startBtn}>
+            <Text style={styles.startBtnText}>
+              {t('routines.start_routine_btn', 'Entrenar ➔')}
+            </Text>
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -254,5 +288,24 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  footerActionsRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  cardActionIconBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardActionDeleteBtn: {
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderColor: 'rgba(239, 68, 68, 0.25)',
   },
 });

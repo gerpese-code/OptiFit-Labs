@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -20,11 +20,12 @@ import {
   Calendar,
   Sparkles,
   BookOpen,
+  Edit3,
 } from 'lucide-react-native';
 import { useLanguage } from '@/context/LanguageContext';
 import { translateExerciseName, translateMuscleGroup } from '@/lib/workoutTranslator';
 import { supabase } from '@/lib/supabase';
-import { Exercise, Routine } from '@/types/database';
+import { Exercise, Routine, RoutineDay } from '@/types/database';
 import ExerciseInventoryModal from './ExerciseInventoryModal';
 import CreateCustomExerciseModal from './CreateCustomExerciseModal';
 
@@ -32,7 +33,11 @@ interface CreateRoutineModalProps {
   visible: boolean;
   onClose: () => void;
   onRoutineCreated: (newRoutine: Routine) => void;
+  onRoutineUpdated?: (updatedRoutine: Routine) => void;
+  onRoutineDeleted?: (routineId: string) => void;
   userId: string;
+  initialRoutine?: Routine | null;
+  initialDays?: RoutineDay[] | null;
 }
 
 interface RoutineDayDraft {
@@ -44,9 +49,15 @@ export default function CreateRoutineModal({
   visible,
   onClose,
   onRoutineCreated,
+  onRoutineUpdated,
+  onRoutineDeleted,
   userId,
+  initialRoutine,
+  initialDays,
 }: CreateRoutineModalProps) {
   const { t, language } = useLanguage();
+
+  const isEditing = Boolean(initialRoutine);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -87,6 +98,61 @@ export default function CreateRoutineModal({
     setDescription('');
     setDays([{ name: 'Día 1: Entrenamiento Principal', exercises: [] }]);
   };
+
+  useEffect(() => {
+    if (visible && initialRoutine) {
+      setTitle(initialRoutine.title || '');
+      setDescription(initialRoutine.description || '');
+
+      const hasExercisesInInitialDays = initialDays && initialDays.some((d) => (d.routine_exercises || []).length > 0);
+
+      if (hasExercisesInInitialDays) {
+        setDays(
+          initialDays!.map((d) => ({
+            name: d.name,
+            exercises: (d.routine_exercises || [])
+              .map((rx: any) => rx.exercise || (rx.name ? rx : null))
+              .filter(Boolean),
+          }))
+        );
+      } else {
+        // Cargar días y ejercicios completos desde Supabase
+        const fetchDays = async () => {
+          try {
+            const { data } = await supabase
+              .from('routine_days')
+              .select(`
+                name,
+                order_index,
+                routine_exercises (
+                  order_index,
+                  exercise:exercise_id (*)
+                )
+              `)
+              .eq('routine_id', initialRoutine.id)
+              .order('order_index', { ascending: true });
+
+            if (data && data.length > 0) {
+              setDays(
+                data.map((d: any) => ({
+                  name: d.name,
+                  exercises: (d.routine_exercises || [])
+                    .sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0))
+                    .map((rx: any) => rx.exercise)
+                    .filter(Boolean),
+                }))
+              );
+            }
+          } catch (e) {
+            console.error('Error fetching routine days in modal:', e);
+          }
+        };
+        fetchDays();
+      }
+    } else if (visible && !initialRoutine) {
+      resetForm();
+    }
+  }, [visible, initialRoutine]);
 
   const handleAddDay = () => {
     setDays((prev) => [
@@ -138,21 +204,108 @@ export default function CreateRoutineModal({
   };
 
   const handleSaveRoutine = async () => {
-    const trimmedTitle = title.trim() || 'Mi Rutina Personalizada';
-    
+    const trimmedTitle =
+      title.trim() ||
+      (isEditing
+        ? language === 'es'
+          ? 'Mi Rutina Modificada'
+          : 'My Modified Routine'
+        : language === 'es'
+        ? 'Mi Rutina Personalizada'
+        : 'My Custom Routine');
+
     // Validar que al menos un día tenga ejercicios
     const hasAnyExercises = days.some((d) => d.exercises.length > 0);
     if (!hasAnyExercises) {
       Alert.alert(
         t('common.error', 'Error'),
-        'Por favor agrega al menos un ejercicio a tu rutina antes de guardarla.'
+        language === 'es'
+          ? 'Por favor agrega al menos un ejercicio a tu rutina antes de guardarla.'
+          : 'Please add at least one exercise to your routine before saving.'
       );
       return;
     }
 
     setIsSaving(true);
     try {
-      // 1. Desactivar rutinas anteriores de este alumno
+      let savedRoutine: Routine;
+
+      if (isEditing && initialRoutine) {
+        // 1. Actualizar título y descripción
+        const { data: updatedRoutine, error: routineErr } = await supabase
+          .from('routines')
+          .update({
+            title: trimmedTitle,
+            description: description.trim() || 'Rutina adaptada por el alumno',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', initialRoutine.id)
+          .select()
+          .single();
+
+        if (routineErr) throw routineErr;
+        savedRoutine = updatedRoutine as Routine;
+
+        // 2. Eliminar días antiguos de esta rutina (ON DELETE CASCADE elimina ejercicios y series)
+        await supabase.from('routine_days').delete().eq('routine_id', initialRoutine.id);
+
+        // 3. Recrear los días y sus ejercicios
+        for (let dIdx = 0; dIdx < days.length; dIdx++) {
+          const dayDraft = days[dIdx];
+          const { data: dayData, error: dayErr } = await supabase
+            .from('routine_days')
+            .insert({
+              routine_id: initialRoutine.id,
+              day_number: dIdx + 1,
+              name: dayDraft.name.trim() || `Día ${dIdx + 1}`,
+              order_index: dIdx,
+            })
+            .select()
+            .single();
+
+          if (dayErr) throw dayErr;
+
+          for (let eIdx = 0; eIdx < dayDraft.exercises.length; eIdx++) {
+            const ex = dayDraft.exercises[eIdx];
+            const { data: rxData, error: rxErr } = await supabase
+              .from('routine_exercises')
+              .insert({
+                routine_day_id: dayData.id,
+                exercise_id: ex.id,
+                order_index: eIdx,
+                notes: ex.is_custom ? 'Ejercicio creado por el alumno' : null,
+              })
+              .select()
+              .single();
+
+            if (rxErr) throw rxErr;
+
+            const defaultSets = [
+              { routine_exercise_id: rxData.id, set_number: 1, target_reps: 12, target_weight_kg: 0, target_rpe: 8, rest_seconds: 90 },
+              { routine_exercise_id: rxData.id, set_number: 2, target_reps: 10, target_weight_kg: 0, target_rpe: 8.5, rest_seconds: 90 },
+              { routine_exercise_id: rxData.id, set_number: 3, target_reps: 8, target_weight_kg: 0, target_rpe: 9, rest_seconds: 120 },
+            ];
+
+            await supabase.from('routine_exercise_sets').insert(defaultSets);
+          }
+        }
+
+        Alert.alert(
+          t('common.success', 'Éxito'),
+          language === 'es' ? '¡Rutina modificada con éxito!' : 'Routine updated successfully!'
+        );
+
+        resetForm();
+        if (onRoutineUpdated) {
+          onRoutineUpdated(savedRoutine);
+        } else {
+          onRoutineCreated(savedRoutine);
+        }
+        onClose();
+        return;
+      }
+
+      // 1. Desactivar rutinas anteriores de este alumno si es una nueva rutina
       await supabase
         .from('routines')
         .update({ is_active: false })
@@ -225,7 +378,7 @@ export default function CreateRoutineModal({
       onRoutineCreated(routineData as Routine);
       onClose();
     } catch (err: any) {
-      console.error('Error creando rutina personalizada:', err);
+      console.error('Error guardando rutina personalizada:', err);
       Alert.alert(
         t('common.error', 'Error'),
         err.message || 'No se pudo guardar la rutina. Revisa tu conexión.'
@@ -235,6 +388,51 @@ export default function CreateRoutineModal({
     }
   };
 
+  const handleDeleteCurrentRoutine = () => {
+    if (!initialRoutine) return;
+    Alert.alert(
+      language === 'es' ? '¿Eliminar Rutina por completo?' : 'Delete Routine completely?',
+      language === 'es'
+        ? `¿Estás seguro de que deseas eliminar permanentemente la rutina "${initialRoutine.title}"? Esta acción no se puede deshacer.`
+        : `Are you sure you want to permanently delete "${initialRoutine.title}"? This action cannot be undone.`,
+      [
+        { text: t('common.cancel', 'Cancelar'), style: 'cancel' },
+        {
+          text: t('common.delete', 'Eliminar'),
+          style: 'destructive',
+          onPress: async () => {
+            setIsSaving(true);
+            try {
+              const { error } = await supabase
+                .from('routines')
+                .delete()
+                .eq('id', initialRoutine.id);
+
+              if (error) throw error;
+
+              if (onRoutineDeleted) {
+                onRoutineDeleted(initialRoutine.id);
+              }
+              resetForm();
+              onClose();
+              Alert.alert(
+                t('common.success', 'Éxito'),
+                language === 'es'
+                  ? 'Rutina eliminada correctamente.'
+                  : 'Routine deleted successfully.'
+              );
+            } catch (err: any) {
+              console.error('Error al eliminar rutina:', err);
+              Alert.alert(t('common.error', 'Error'), err.message || 'No se pudo eliminar la rutina.');
+            } finally {
+              setIsSaving(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <SafeAreaView style={styles.safeArea}>
@@ -242,14 +440,26 @@ export default function CreateRoutineModal({
           {/* Cabecera */}
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
-              <View style={styles.tag}>
-                <Sparkles size={11} color="#38bdf8" style={{ marginRight: 4 }} />
-                <Text style={styles.tagText}>
-                  {t('workout.create_routine_sub', 'NUEVA RUTINA')}
+              <View style={[styles.tag, isEditing && styles.tagEdit]}>
+                {isEditing ? (
+                  <Edit3 size={11} color="#38bdf8" style={{ marginRight: 4 }} />
+                ) : (
+                  <Sparkles size={11} color="#38bdf8" style={{ marginRight: 4 }} />
+                )}
+                <Text style={[styles.tagText, isEditing && styles.tagEditText]}>
+                  {isEditing
+                    ? language === 'es'
+                      ? 'MODIFICAR RUTINA'
+                      : 'EDIT ROUTINE'
+                    : t('workout.create_routine_sub', 'NUEVA RUTINA')}
                 </Text>
               </View>
               <Text style={styles.title}>
-                {t('workout.create_routine_title', 'Crear mi Rutina')}
+                {isEditing
+                  ? language === 'es'
+                    ? 'Modificar Rutina'
+                    : 'Edit Routine'
+                  : t('workout.create_routine_title', 'Crear mi Rutina')}
               </Text>
             </View>
 
@@ -378,6 +588,20 @@ export default function CreateRoutineModal({
                 </View>
               </View>
             ))}
+
+            {isEditing && initialRoutine && (
+              <TouchableOpacity
+                style={styles.deleteRoutineBtn}
+                onPress={handleDeleteCurrentRoutine}
+                disabled={isSaving}
+                activeOpacity={0.75}
+              >
+                <Trash2 size={15} color="#ef4444" style={{ marginRight: 6 }} />
+                <Text style={styles.deleteRoutineBtnText}>
+                  {language === 'es' ? 'Eliminar esta rutina por completo' : 'Delete this routine completely'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
 
           {/* Botones de acción inferior */}
@@ -403,7 +627,11 @@ export default function CreateRoutineModal({
                 <>
                   <Check size={16} color="#ffffff" style={{ marginRight: 6 }} />
                   <Text style={styles.saveBtnText}>
-                    {t('workout.save_routine_btn', 'Guardar Rutina')}
+                    {isEditing
+                      ? language === 'es'
+                        ? 'Guardar Cambios'
+                        : 'Save Changes'
+                      : t('workout.save_routine_btn', 'Guardar Rutina')}
                   </Text>
                 </>
               )}
@@ -697,5 +925,28 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: '#ffffff',
+  },
+  tagEdit: {
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+  },
+  tagEditText: {
+    color: '#38bdf8',
+  },
+  deleteRoutineBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderRadius: 14,
+    paddingVertical: 12,
+    marginTop: 18,
+    marginBottom: 10,
+  },
+  deleteRoutineBtnText: {
+    color: '#ef4444',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

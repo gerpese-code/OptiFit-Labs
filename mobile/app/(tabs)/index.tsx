@@ -38,6 +38,7 @@ import {
   Target,
   BicepsFlexed,
   MessageCircle,
+  Edit3,
 } from 'lucide-react-native';
 import { useFocusEffect } from 'expo-router';
 import { useLanguage } from '@/context/LanguageContext';
@@ -125,6 +126,8 @@ export default function WorkoutScreen() {
   const [showCoachingModal, setShowCoachingModal] = useState(false);
   const [showInventoryModal, setShowInventoryModal] = useState(false);
   const [showCreateRoutineModal, setShowCreateRoutineModal] = useState(false);
+  const [routineToEdit, setRoutineToEdit] = useState<Routine | null>(null);
+  const [routineDaysToEdit, setRoutineDaysToEdit] = useState<RoutineDay[] | null>(null);
   const [substitutingExerciseIndex, setSubstitutingExerciseIndex] = useState<number | null>(null);
   const [customizingExerciseIndex, setCustomizingExerciseIndex] = useState<number | null>(null);
   const [showCustomizeModal, setShowCustomizeModal] = useState(false);
@@ -616,6 +619,8 @@ export default function WorkoutScreen() {
           {
             text: language === 'en' ? '⚡ + Create Routine' : '⚡ + Crear Rutina',
             onPress: () => {
+              setRoutineToEdit(null);
+              setRoutineDaysToEdit(null);
               setShowCreateRoutineModal(true);
             },
           },
@@ -953,7 +958,7 @@ export default function WorkoutScreen() {
           return true;
         }
         if (showCreateRoutineModal) {
-          setShowCreateRoutineModal(false);
+          handleCloseCreateRoutineModal();
           return true;
         }
         if (showInventoryModal) {
@@ -1534,22 +1539,21 @@ export default function WorkoutScreen() {
     }
   };
 
-  // Eliminar ejercicio de la sesión de hoy
+  // Eliminar ejercicio de la sesión de hoy o permanentemente de la rutina
   const handleRemoveExercise = (exIdx: number) => {
     const targetEx = workingExercises[exIdx];
     const exName = targetEx?.exercise?.name || 'este ejercicio';
 
     Alert.alert(
       t('workout.remove_exercise_confirm_title', '¿Eliminar ejercicio?'),
-      t(
-        'workout.remove_exercise_confirm_desc',
-        '¿Deseas quitar {name} de tu entrenamiento de hoy?'
-      ).replace('{name}', exName),
+      language === 'es'
+        ? `¿Cómo deseas quitar "${exName}"?`
+        : `How would you like to remove "${exName}"?`,
       [
         { text: t('common.cancel', 'Cancelar'), style: 'cancel' },
         {
-          text: t('common.delete', 'Eliminar'),
-          style: 'destructive',
+          text: language === 'es' ? 'Solo de hoy' : 'Only today',
+          style: 'default',
           onPress: async () => {
             const updated = workingExercises.filter((_, idx) => idx !== exIdx);
             setWorkingExercises(updated);
@@ -1568,6 +1572,99 @@ export default function WorkoutScreen() {
             }
           },
         },
+        {
+          text: language === 'es' ? 'Quitar de la rutina (Permanente)' : 'Remove from routine (Permanent)',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // 1. Quitar de la vista actual
+              const updated = workingExercises.filter((_, idx) => idx !== exIdx);
+              setWorkingExercises(updated);
+              await AsyncStorage.setItem('@fitnesspro_working_exercises', JSON.stringify(updated));
+
+              // 2. Si tiene ID en routine_exercises, borrarlo de Supabase
+              if (targetEx?.id) {
+                await supabase.from('routine_exercises').delete().eq('id', targetEx.id);
+              }
+
+              // 3. Limpiar sets completados en sesión
+              const cSetsCopy = { ...completedSets };
+              if (targetEx && targetEx.sets) {
+                targetEx.sets.forEach((s) => {
+                  delete cSetsCopy[s.id];
+                });
+              }
+              setCompletedSets(cSetsCopy);
+              await AsyncStorage.setItem('@fitnesspro_completed_sets', JSON.stringify(cSetsCopy));
+
+              setOriginalExercises((prev) => prev.filter((_, idx) => idx !== exIdx));
+              loadTodayWorkout();
+
+              Alert.alert(
+                t('common.success', 'Éxito'),
+                language === 'es'
+                  ? `"${exName}" ha sido eliminado permanentemente de la rutina.`
+                  : `"${exName}" was permanently removed from the routine.`
+              );
+            } catch (err: any) {
+              console.error('Error al quitar ejercicio permanentemente:', err);
+              Alert.alert(t('common.error', 'Error'), err.message || 'No se pudo eliminar de la base de datos.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Abrir modal para modificar cualquier rutina (asignada o propia)
+  const handleOpenEditRoutine = (targetRoutine: Routine, day?: RoutineDay) => {
+    triggerHaptic('tap');
+    setRoutineToEdit(targetRoutine);
+    const matchedDays = routineDaysList.filter((d) => d.routine_id === targetRoutine.id);
+    setRoutineDaysToEdit(matchedDays.length > 0 ? matchedDays : (day ? [day] : null));
+    setShowCreateRoutineModal(true);
+  };
+
+  // Eliminar una rutina por completo (asignada por coach o creada por el alumno)
+  const handleDeleteRoutine = (routineId: string, routineTitle: string) => {
+    triggerHaptic('tap');
+    Alert.alert(
+      language === 'es' ? '¿Eliminar Rutina por completo?' : 'Delete Routine completely?',
+      language === 'es'
+        ? `¿Estás seguro de que deseas eliminar permanentemente la rutina "${routineTitle}"? Se borrará tanto de tu lista como de tus entrenamientos.`
+        : `Are you sure you want to permanently delete the routine "${routineTitle}"? It will be removed from your workouts.`,
+      [
+        { text: t('common.cancel', 'Cancelar'), style: 'cancel' },
+        {
+          text: t('common.delete', 'Eliminar'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase.from('routines').delete().eq('id', routineId);
+              if (error) throw error;
+
+              // Si la rutina abierta en pantalla es la eliminada, volver al dashboard
+              if (activeRoutine?.id === routineId || selectedRoutineDay?.routine_id === routineId) {
+                setSelectedRoutineDay(null);
+                setTodayDay(null);
+                setWorkingExercises([]);
+                await AsyncStorage.removeItem('@fitnesspro_working_exercises');
+              }
+
+              await loadTodayWorkout();
+
+              Alert.alert(
+                t('common.success', 'Éxito'),
+                language === 'es'
+                  ? 'La rutina ha sido eliminada con éxito.'
+                  : 'The routine has been successfully deleted.'
+              );
+            } catch (err: any) {
+              console.error('Error al eliminar rutina:', err);
+              Alert.alert(t('common.error', 'Error'), err.message || 'No se pudo eliminar la rutina.');
+            }
+          },
+        },
       ]
     );
   };
@@ -1576,6 +1673,30 @@ export default function WorkoutScreen() {
   const handleRoutineCreated = (newRoutine: Routine) => {
     setActiveRoutine(newRoutine);
     loadTodayWorkout();
+  };
+
+  // Callback cuando se actualiza una rutina existente
+  const handleRoutineUpdated = (updatedRoutine: Routine) => {
+    setActiveRoutine(updatedRoutine);
+    loadTodayWorkout();
+  };
+
+  // Callback cuando se elimina una rutina desde el modal de edición
+  const handleRoutineDeleted = (deletedRoutineId: string) => {
+    if (activeRoutine?.id === deletedRoutineId || selectedRoutineDay?.routine_id === deletedRoutineId) {
+      setSelectedRoutineDay(null);
+      setTodayDay(null);
+      setWorkingExercises([]);
+      AsyncStorage.removeItem('@fitnesspro_working_exercises').catch(() => {});
+    }
+    loadTodayWorkout();
+  };
+
+  // Cerrar modal de rutina limpiando estado de edición
+  const handleCloseCreateRoutineModal = () => {
+    setShowCreateRoutineModal(false);
+    setRoutineToEdit(null);
+    setRoutineDaysToEdit(null);
   };
 
   // Diálogo interactivo de confirmación antes de finalizar la sesión
@@ -2143,6 +2264,21 @@ export default function WorkoutScreen() {
                       key={day.id}
                       day={day}
                       onSelect={handleSelectRoutineDay}
+                      onEdit={(d) => {
+                        const parentRoutine = assignedRoutinesList.find((r) => r.id === d.routine_id);
+                        if (parentRoutine) {
+                          handleOpenEditRoutine(parentRoutine, d);
+                        } else if (activeRoutine && activeRoutine.id === d.routine_id) {
+                          handleOpenEditRoutine(activeRoutine, d);
+                        } else {
+                          handleOpenEditRoutine({ id: d.routine_id, title: d.name } as Routine, d);
+                        }
+                      }}
+                      onDelete={(d) => {
+                        const parentRoutine = assignedRoutinesList.find((r) => r.id === d.routine_id);
+                        const rTitle = parentRoutine?.title || activeRoutine?.title || d.name;
+                        handleDeleteRoutine(d.routine_id, rTitle);
+                      }}
                       completionCount={completionCounts[day.id] || day.completion_count || 0}
                       lastCompletedAt={lastCompletedDates[day.id] || day.last_completed_at || null}
                     />
@@ -2240,7 +2376,11 @@ export default function WorkoutScreen() {
             <View style={styles.emptyActionsContainer}>
               <TouchableOpacity
                 style={styles.createMyRoutineBtn}
-                onPress={() => setShowCreateRoutineModal(true)}
+                onPress={() => {
+                  setRoutineToEdit(null);
+                  setRoutineDaysToEdit(null);
+                  setShowCreateRoutineModal(true);
+                }}
                 activeOpacity={0.8}
               >
                 <Sparkles size={14} color="#ffffff" style={{ marginRight: 6 }} />
@@ -2342,20 +2482,61 @@ export default function WorkoutScreen() {
                 </Text>
                 <Text style={styles.routineTitle}>{translateRoutineTitle(activeRoutine?.title || "", language)}</Text>
 
-                {/* Botón para ver y chequear la rutina original prescrita por el coach */}
-                <TouchableOpacity
-                  style={styles.viewOriginalBtn}
-                  onPress={() => setShowOriginalModal(true)}
-                  activeOpacity={0.7}
-                >
-                  <ClipboardList size={13} color="#10b981" style={{ marginRight: 5 }} />
-                  <Text style={styles.viewOriginalBtnText}>
-                    {t('workout.view_original_plan', 'Ver Plan Original del Coach')}
-                  </Text>
-                  {Object.keys(progressionOverrides).length > 0 && (
-                    <View style={styles.modIndicatorDot} />
-                  )}
-                </TouchableOpacity>
+                {/* Botones de gestión de rutina y plan original */}
+                <View style={styles.routineBannerActionsRow}>
+                  <TouchableOpacity
+                    style={styles.viewOriginalBtn}
+                    onPress={() => setShowOriginalModal(true)}
+                    activeOpacity={0.7}
+                  >
+                    <ClipboardList size={12} color="#10b981" style={{ marginRight: 4 }} />
+                    <Text style={styles.viewOriginalBtnText}>
+                      {t('workout.view_original_plan', 'Plan Original')}
+                    </Text>
+                    {Object.keys(progressionOverrides).length > 0 && (
+                      <View style={styles.modIndicatorDot} />
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.routineBannerBtnEdit}
+                    onPress={() => {
+                      if (activeRoutine) {
+                        handleOpenEditRoutine(activeRoutine, selectedRoutineDay || undefined);
+                      } else if (selectedRoutineDay) {
+                        const parent = assignedRoutinesList.find((r) => r.id === selectedRoutineDay.routine_id);
+                        if (parent) {
+                          handleOpenEditRoutine(parent, selectedRoutineDay);
+                        } else {
+                          handleOpenEditRoutine({ id: selectedRoutineDay.routine_id, title: selectedRoutineDay.name } as Routine, selectedRoutineDay);
+                        }
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Edit3 size={12} color="#38bdf8" style={{ marginRight: 4 }} />
+                    <Text style={styles.routineBannerBtnEditText}>
+                      {language === 'es' ? 'Modificar' : 'Edit'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.routineBannerBtnDelete}
+                    onPress={() => {
+                      const rId = activeRoutine?.id || selectedRoutineDay?.routine_id;
+                      const rTitle = activeRoutine?.title || selectedRoutineDay?.name || 'Rutina';
+                      if (rId) {
+                        handleDeleteRoutine(rId, rTitle);
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Trash2 size={12} color="#ef4444" style={{ marginRight: 4 }} />
+                    <Text style={styles.routineBannerBtnDeleteText}>
+                      {language === 'es' ? 'Eliminar' : 'Delete'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {isSessionActive ? (
@@ -2717,9 +2898,22 @@ export default function WorkoutScreen() {
 
       <CreateRoutineModal
         visible={showCreateRoutineModal}
-        onClose={() => setShowCreateRoutineModal(false)}
-        onRoutineCreated={handleRoutineCreated}
+        onClose={handleCloseCreateRoutineModal}
+        onRoutineCreated={(newRoutine) => {
+          handleRoutineCreated(newRoutine);
+          handleCloseCreateRoutineModal();
+        }}
+        onRoutineUpdated={(updatedRoutine) => {
+          handleRoutineUpdated(updatedRoutine);
+          handleCloseCreateRoutineModal();
+        }}
+        onRoutineDeleted={(deletedRoutineId) => {
+          handleRoutineDeleted(deletedRoutineId);
+          handleCloseCreateRoutineModal();
+        }}
         userId={user?.id || ''}
+        initialRoutine={routineToEdit}
+        initialDays={routineDaysToEdit}
       />
 
       <BarbellCalculatorModal
@@ -2745,8 +2939,6 @@ const styles = StyleSheet.create({
   viewOriginalBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    marginTop: 10,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
@@ -2758,6 +2950,43 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     color: '#34d399',
+  },
+  routineBannerActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+  },
+  routineBannerBtnEdit: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.35)',
+  },
+  routineBannerBtnEditText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#38bdf8',
+  },
+  routineBannerBtnDelete: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+  },
+  routineBannerBtnDeleteText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#ef4444',
   },
   modIndicatorDot: {
     width: 6,
