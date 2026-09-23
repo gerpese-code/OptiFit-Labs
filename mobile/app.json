@@ -61,7 +61,8 @@
       ]
     ],
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": true,
+      "baseUrl": "/OptiFit-Labs/app"
     },
     "extra": {
       "eas": {
