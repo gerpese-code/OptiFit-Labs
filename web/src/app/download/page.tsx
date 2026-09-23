@@ -253,6 +253,20 @@ export default function UniversalDownloadPage() {
           </div>
         )}
 
+        {/* Acceso Panel de Administrador / Coach */}
+        <div className="mt-6 pt-4 border-t border-emerald-950/60 text-center">
+          <a
+            href="/admin"
+            className="inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gray-900/90 hover:bg-gray-800 text-xs font-bold text-emerald-400 border border-emerald-800/50 hover:border-emerald-500 transition shadow-sm"
+          >
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <span>Abrir Panel de Coach / Admin</span>
+          </a>
+          <p className="text-[10px] text-gray-500 mt-1.5">
+            Acceso exclusivo del entrenador para gestionar alumnos y rutinas
+          </p>
+        </div>
+
       </div>
     </div>
   );
