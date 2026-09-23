@@ -161,7 +161,9 @@ export default function ClientDetailPage() {
                 exercise:exercise_id (
                   id,
                   name,
-                  muscle_group
+                  muscle_group,
+                  image_urls,
+                  gif_url
                 ),
                 routine_exercise_sets (
                   *
@@ -810,24 +812,40 @@ export default function ClientDetailPage() {
                               const kg = firstSet?.target_weight_kg || 0;
                               const reps = firstSet?.target_reps || 10;
 
+                              const img = rx.exercise?.image_urls?.[0] || rx.exercise?.gif_url;
+
                               return (
                                 <div
                                   key={rx.id || rxIdx}
-                                  className="p-3 bg-gray-900 border border-gray-800 rounded-xl space-y-1"
+                                  className="p-3 bg-gray-900 border border-gray-800 rounded-xl flex items-start gap-3"
                                 >
-                                  <div className="flex items-start justify-between gap-2">
-                                    <span className="text-xs font-bold text-white line-clamp-1">
-                                      {rx.exercise?.name || 'Ejercicio'}
-                                    </span>
-                                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/40 shrink-0">
-                                      {setsCount} x {reps} reps ({kg} kg)
-                                    </span>
-                                  </div>
-                                  {rx.notes && (
-                                    <p className="text-[10.5px] text-gray-400 line-clamp-1 font-mono">
-                                      {rx.notes}
-                                    </p>
+                                  {img ? (
+                                    <img
+                                      src={img}
+                                      alt={rx.exercise?.name || 'Ejercicio'}
+                                      className="w-10 h-10 rounded-lg object-cover bg-gray-950 border border-gray-800 shrink-0"
+                                      loading="lazy"
+                                    />
+                                  ) : (
+                                    <div className="w-10 h-10 rounded-lg bg-gray-950 border border-gray-800 flex items-center justify-center shrink-0 text-gray-500">
+                                      <Dumbbell className="w-5 h-5 text-gray-500" />
+                                    </div>
                                   )}
+                                  <div className="flex-1 min-w-0 space-y-1">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <span className="text-xs font-bold text-white line-clamp-1">
+                                        {rx.exercise?.name || 'Ejercicio'}
+                                      </span>
+                                      <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/40 shrink-0">
+                                        {setsCount} x {reps} reps ({kg} kg)
+                                      </span>
+                                    </div>
+                                    {rx.notes && (
+                                      <p className="text-[10.5px] text-gray-400 line-clamp-1 font-mono">
+                                        {rx.notes}
+                                      </p>
+                                    )}
+                                  </div>
                                 </div>
                               );
                             })}
