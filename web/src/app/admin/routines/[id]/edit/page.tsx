@@ -34,6 +34,7 @@ interface DraftExercise {
   video_url: string | null;
   gif_url: string | null;
   image_url: string | null;
+  image_urls?: string[];
   muscle_group: string;
   sets: SetDraft[];
 }
@@ -166,19 +167,29 @@ export default function EditRoutinePage() {
           muscle_group: detectedMuscle,
           day_number: d.day_number,
           exercises: sortedExercises.map((rx: any) => {
-            const exInfo = (exercisesData || []).find((e) => e.id === rx.exercise_id);
             const sortedSets = (rx.routine_exercise_sets || []).sort(
               (a: any, b: any) => a.set_number - b.set_number
             );
 
             // Si las notas guardaban un nombre personalizado entre corchetes [Nombre] notas
-            let customName = exInfo?.name || 'Ejercicio';
+            let customName = '';
             let parsedNotes = rx.notes || '';
             const match = parsedNotes.match(/^\[(.*?)\]\s*(.*)$/);
             if (match) {
               customName = match[1];
               parsedNotes = match[2];
             }
+
+            const exInfo = (exercisesData || []).find((e) => e.id === rx.exercise_id)
+              || (customName ? (exercisesData || []).find((e) => e.name.toLowerCase() === customName.toLowerCase()) : null);
+
+            if (!customName) {
+              customName = exInfo?.name || 'Ejercicio';
+            }
+
+            const imgs: string[] = exInfo?.image_urls && exInfo.image_urls.length > 0
+              ? exInfo.image_urls
+              : (exInfo?.gif_url ? [exInfo.gif_url] : []);
 
             return {
               exercise_id: rx.exercise_id,
@@ -187,7 +198,8 @@ export default function EditRoutinePage() {
               notes: parsedNotes,
               video_url: exInfo?.video_url || null,
               gif_url: exInfo?.gif_url || null,
-              image_url: exInfo?.image_urls?.[0] || null,
+              image_url: imgs[0] || null,
+              image_urls: imgs,
               sets: sortedSets.map((s: any) => {
                 const kg = s.target_weight_kg || 0;
                 const lbs = Math.round(kg * LBS_PER_KG);
@@ -297,6 +309,10 @@ export default function EditRoutinePage() {
     const defaultKg = 20;
     const defaultLbs = Math.round(defaultKg * LBS_PER_KG);
 
+    const imgs: string[] = found?.image_urls && found.image_urls.length > 0
+      ? found.image_urls
+      : (found?.image_url ? [found.image_url] : (found?.gif_url ? [found.gif_url] : []));
+
     const updated = [...days];
     updated[selectorTargetDayIndex].exercises.push({
       exercise_id: exerciseId,
@@ -305,7 +321,8 @@ export default function EditRoutinePage() {
       notes: '',
       video_url: found?.video_url || null,
       gif_url: found?.gif_url || null,
-      image_url: found?.image_urls?.[0] || null,
+      image_url: imgs[0] || null,
+      image_urls: imgs,
       sets: [
         {
           set_number: 1,
@@ -410,9 +427,17 @@ export default function EditRoutinePage() {
       const updated = [...days];
       const ex = updated[mediaTarget.dayIdx].exercises[mediaTarget.exIdx];
 
-      if (type === 'video') ex.video_url = publicUrl;
-      else if (type === 'gif') ex.gif_url = publicUrl;
-      else ex.image_url = publicUrl;
+      if (type === 'video') {
+        ex.video_url = publicUrl;
+      } else if (type === 'gif') {
+        ex.gif_url = publicUrl;
+      } else {
+        ex.image_url = publicUrl;
+        if (!ex.image_urls) ex.image_urls = [];
+        if (!ex.image_urls.includes(publicUrl)) {
+          ex.image_urls.push(publicUrl);
+        }
+      }
 
       setDays(updated);
     } catch (err: any) {
@@ -809,6 +834,98 @@ export default function EditRoutinePage() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Guía de Ejecución Técnica (1 o 2 imágenes de inicio y contracción) */}
+                      {((ex.image_urls && ex.image_urls.length > 0) || ex.image_url || ex.gif_url) ? (
+                        <div className="bg-gray-900/60 border border-gray-800/80 rounded-xl p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <ImageIcon className="w-3.5 h-3.5 text-emerald-400" />
+                              <span className="text-[11px] font-bold text-gray-300 uppercase tracking-wider">
+                                Fotos de Ejecución Técnica
+                              </span>
+                              {(ex.image_urls && ex.image_urls.length > 1) && (
+                                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/80 border border-emerald-800/50 px-2 py-0.5 rounded-full">
+                                  2 Fases (Inicio & Contracción)
+                                </span>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setMediaTarget({ dayIdx, exIdx })}
+                              className="text-[11px] text-gray-400 hover:text-emerald-400 transition flex items-center gap-1 font-semibold hover:underline"
+                            >
+                              <UploadCloud className="w-3 h-3" />
+                              Cambiar multimedia
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            {/* Mostrar las imágenes de ejecución (Fase 1 y Fase 2) */}
+                            {((ex.image_urls && ex.image_urls.length > 0) ? ex.image_urls : (ex.image_url ? [ex.image_url] : (ex.gif_url ? [ex.gif_url] : []))).map((imgUrl, imgIdx) => (
+                              <div key={imgIdx} className="relative rounded-xl overflow-hidden border border-gray-800 bg-gray-950 aspect-[4/3] group shadow-inner">
+                                <img
+                                  src={imgUrl}
+                                  alt={`${ex.custom_name} - Fase ${imgIdx + 1}`}
+                                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                  loading="lazy"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
+                                <span className="absolute bottom-1.5 left-1.5 right-1.5 text-[9px] font-black px-2 py-0.5 rounded bg-gray-950/90 text-emerald-300 border border-emerald-800/50 backdrop-blur truncate">
+                                  {imgIdx === 0 ? '1. Fase Inicial / Descenso' : '2. Fase Final / Contracción'}
+                                </span>
+                              </div>
+                            ))}
+
+                            {/* Si hay GIF adicional y no está en image_urls */}
+                            {ex.gif_url && (!ex.image_urls || !ex.image_urls.includes(ex.gif_url)) && (
+                              <div className="relative rounded-xl overflow-hidden border border-gray-800 bg-gray-950 aspect-[4/3] group shadow-inner">
+                                <img
+                                  src={ex.gif_url}
+                                  alt={`${ex.custom_name} Animación`}
+                                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                  loading="lazy"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
+                                <span className="absolute bottom-1.5 left-1.5 text-[9px] font-black px-2 py-0.5 rounded bg-gray-950/90 text-amber-300 border border-amber-800/50 backdrop-blur">
+                                  GIF Dinámico
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Si hay Video */}
+                            {ex.video_url && (
+                              <div className="relative rounded-xl overflow-hidden border border-gray-800 bg-gray-950 aspect-[4/3] flex flex-col items-center justify-center p-2 text-center group">
+                                <Film className="w-6 h-6 text-emerald-400 mb-1 group-hover:scale-110 transition-transform" />
+                                <span className="text-[10px] text-gray-200 font-bold">Video demostrativo</span>
+                                <a
+                                  href={ex.video_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[9px] text-emerald-400 hover:text-emerald-300 underline mt-1"
+                                >
+                                  Reproducir video
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between p-3 bg-gray-900/30 border border-dashed border-gray-800 rounded-xl">
+                          <div className="flex items-center gap-2.5 text-gray-500 text-xs">
+                            <ImageIcon className="w-4 h-4 text-gray-600" />
+                            <span>Sin fotos de ejecución asignadas</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setMediaTarget({ dayIdx, exIdx })}
+                            className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition flex items-center gap-1.5 bg-emerald-950/40 border border-emerald-800/40 px-3 py-1 rounded-lg"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            Subir fotos de ejecución (1 o 2 fotos)
+                          </button>
+                        </div>
+                      )}
 
                       {/* Indicaciones con chips rápidos */}
                       <div className="space-y-1.5">
