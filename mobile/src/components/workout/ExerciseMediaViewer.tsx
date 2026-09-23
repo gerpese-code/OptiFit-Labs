@@ -34,10 +34,21 @@ export default function ExerciseMediaViewer({
   imageUrls = [],
 }: ExerciseMediaViewerProps) {
   const { language } = useLanguage();
+
+  // Deduplicar fotos y validar que no contengan valores nulos o vacíos
+  const uniquePhotos = Array.from(new Set((imageUrls || []).filter(Boolean)));
+  // Validar estrictamente que el gifUrl sea una animación real (.gif) y no la misma foto JPG
+  const isRealGif = Boolean(
+    gifUrl &&
+    typeof gifUrl === 'string' &&
+    gifUrl.toLowerCase().includes('.gif') &&
+    !uniquePhotos.includes(gifUrl)
+  );
+
   const availableTabs: ('video' | 'gif' | 'photos')[] = [];
   if (videoUrl) availableTabs.push('video');
-  if (gifUrl) availableTabs.push('gif');
-  if (imageUrls && imageUrls.length > 0) availableTabs.push('photos');
+  if (isRealGif) availableTabs.push('gif');
+  if (uniquePhotos.length > 0) availableTabs.push('photos');
 
   const [activeTab, setActiveTab] = useState<'video' | 'gif' | 'photos'>(
     availableTabs[0] || 'photos'
@@ -95,30 +106,43 @@ export default function ExerciseMediaViewer({
           <ModernVideoPlayer url={videoUrl} />
         )}
 
-        {activeTab === 'gif' && gifUrl && (
+        {activeTab === 'gif' && isRealGif && (
           <Image
-            source={{ uri: gifUrl }}
+            source={{ uri: gifUrl! }}
             style={styles.mediaElement}
             contentFit="cover"
             transition={300}
           />
         )}
 
-        {activeTab === 'photos' && (
+        {activeTab === 'photos' && uniquePhotos.length > 0 && (
           <ScrollView
             horizontal
             pagingEnabled
             showsHorizontalScrollIndicator={false}
             style={styles.photosScroll}
           >
-            {imageUrls.map((url, index) => (
-              <Image
-                key={index}
-                source={{ uri: url }}
-                style={[styles.mediaElement, { width: SCREEN_WIDTH - 48 }]}
-                contentFit="cover"
-                transition={300}
-              />
+            {uniquePhotos.map((url, index) => (
+              <View key={index} style={{ width: SCREEN_WIDTH - 48, height: '100%', position: 'relative' }}>
+                <Image
+                  source={{ uri: url }}
+                  style={styles.mediaElement}
+                  contentFit="cover"
+                  transition={300}
+                />
+                {uniquePhotos.length > 1 && (
+                  <View style={styles.phaseBadgeContainer}>
+                    <Text style={styles.phaseBadgeText}>
+                      {index === 0
+                        ? (language === 'en' ? '1. Start / Stretch' : '1. Inicio / Descenso')
+                        : (language === 'en' ? '2. Contraction / Peak' : '2. Contracción / Final')}
+                    </Text>
+                    <Text style={styles.phaseBadgeCounter}>
+                      {index + 1}/{uniquePhotos.length}
+                    </Text>
+                  </View>
+                )}
+              </View>
             ))}
           </ScrollView>
         )}
@@ -197,5 +221,31 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#64748b',
     marginTop: 4,
+  },
+  phaseBadgeContainer: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    right: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(2, 6, 23, 0.85)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+  },
+  phaseBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#34d399',
+    textTransform: 'uppercase',
+  },
+  phaseBadgeCounter: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#94a3b8',
   },
 });

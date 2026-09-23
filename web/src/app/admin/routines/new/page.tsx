@@ -200,7 +200,7 @@ function NewRoutineContent() {
 
     const imgs: string[] = found?.image_urls && found.image_urls.length > 0
       ? found.image_urls
-      : (found?.image_url ? [found.image_url] : (found?.gif_url ? [found.gif_url] : []));
+      : (found?.gif_url ? [found.gif_url] : []);
 
     const updated = [...days];
     updated[selectorTargetDayIndex].exercises.push({
@@ -765,37 +765,47 @@ function NewRoutineContent() {
                           </div>
 
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                            {/* Mostrar las imágenes de ejecución (Fase 1 y Fase 2) */}
-                            {((ex.image_urls && ex.image_urls.length > 0) ? ex.image_urls : (ex.image_url ? [ex.image_url] : (ex.gif_url ? [ex.gif_url] : []))).map((imgUrl, imgIdx) => (
-                              <div key={imgIdx} className="relative rounded-xl overflow-hidden border border-gray-800 bg-gray-950 aspect-[4/3] group shadow-inner">
-                                <img
-                                  src={imgUrl}
-                                  alt={`${ex.custom_name} - Fase ${imgIdx + 1}`}
-                                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                  loading="lazy"
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
-                                <span className="absolute bottom-1.5 left-1.5 right-1.5 text-[9px] font-black px-2 py-0.5 rounded bg-gray-950/90 text-emerald-300 border border-emerald-800/50 backdrop-blur truncate">
-                                  {imgIdx === 0 ? '1. Fase Inicial / Descenso' : '2. Fase Final / Contracción'}
-                                </span>
-                              </div>
-                            ))}
+                            {(() => {
+                              const displayImages = Array.from(new Set(((ex.image_urls && ex.image_urls.length > 0) ? ex.image_urls : (ex.image_url ? [ex.image_url] : [])).filter(Boolean)));
+                              const isRealGif = Boolean(ex.gif_url && typeof ex.gif_url === 'string' && ex.gif_url.toLowerCase().includes('.gif') && !displayImages.includes(ex.gif_url));
+                              const finalImages = displayImages.length > 0 ? displayImages : (!isRealGif && ex.gif_url ? [ex.gif_url] : []);
 
-                            {/* Si hay GIF adicional y no está en image_urls */}
-                            {ex.gif_url && (!ex.image_urls || !ex.image_urls.includes(ex.gif_url)) && (
-                              <div className="relative rounded-xl overflow-hidden border border-gray-800 bg-gray-950 aspect-[4/3] group shadow-inner">
-                                <img
-                                  src={ex.gif_url}
-                                  alt={`${ex.custom_name} Animación`}
-                                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                  loading="lazy"
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
-                                <span className="absolute bottom-1.5 left-1.5 text-[9px] font-black px-2 py-0.5 rounded bg-gray-950/90 text-amber-300 border border-amber-800/50 backdrop-blur">
-                                  GIF Dinámico
-                                </span>
-                              </div>
-                            )}
+                              return (
+                                <>
+                                  {/* Mostrar las imágenes de ejecución (Fase 1 y Fase 2 sin duplicados) */}
+                                  {finalImages.map((imgUrl, imgIdx) => (
+                                    <div key={imgIdx} className="relative rounded-xl overflow-hidden border border-gray-800 bg-gray-950 aspect-[4/3] group shadow-inner">
+                                      <img
+                                        src={imgUrl}
+                                        alt={`${ex.custom_name} - Fase ${imgIdx + 1}`}
+                                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                        loading="lazy"
+                                      />
+                                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
+                                      <span className="absolute bottom-1.5 left-1.5 right-1.5 text-[9px] font-black px-2 py-0.5 rounded bg-gray-950/90 text-emerald-300 border border-emerald-800/50 backdrop-blur truncate">
+                                        {imgIdx === 0 ? '1. Fase Inicial / Descenso' : '2. Fase Final / Contracción'}
+                                      </span>
+                                    </div>
+                                  ))}
+
+                                  {/* Si hay un GIF animado real y no es duplicado */}
+                                  {isRealGif && (
+                                    <div className="relative rounded-xl overflow-hidden border border-gray-800 bg-gray-950 aspect-[4/3] group shadow-inner">
+                                      <img
+                                        src={ex.gif_url!}
+                                        alt={`${ex.custom_name} Animación`}
+                                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                        loading="lazy"
+                                      />
+                                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
+                                      <span className="absolute bottom-1.5 left-1.5 text-[9px] font-black px-2 py-0.5 rounded bg-gray-950/90 text-amber-300 border border-amber-800/50 backdrop-blur">
+                                        GIF Dinámico
+                                      </span>
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            })()}
 
                             {/* Si hay Video */}
                             {ex.video_url && (

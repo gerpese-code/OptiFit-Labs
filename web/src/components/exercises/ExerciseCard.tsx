@@ -19,10 +19,18 @@ export default function ExerciseCard({
   const [isHovered, setIsHovered] = useState(false);
   const [imgError, setImgError] = useState(false);
 
-  const hasMultipleImages = exercise.image_urls && exercise.image_urls.length > 1;
+  const uniqueImages = Array.from(new Set((exercise.image_urls || []).filter(Boolean)));
+  const hasMultipleImages = uniqueImages.length > 1;
+  const isRealGif = Boolean(
+    exercise.gif_url &&
+    typeof exercise.gif_url === 'string' &&
+    exercise.gif_url.toLowerCase().includes('.gif') &&
+    !uniqueImages.includes(exercise.gif_url)
+  );
+
   const currentImg = (isHovered && hasMultipleImages)
-    ? exercise.image_urls[1]
-    : (exercise.gif_url || (exercise.image_urls && exercise.image_urls[0]));
+    ? uniqueImages[1]
+    : ((uniqueImages.length > 0 ? uniqueImages[0] : null) || (isRealGif ? exercise.gif_url : null));
 
   return (
     <div
@@ -81,14 +89,14 @@ export default function ExerciseCard({
               Video
             </span>
           )}
-          {exercise.gif_url && (
+          {isRealGif && (
             <span className="px-2 py-0.5 rounded-md bg-gray-900/80 backdrop-blur text-[10px] font-semibold text-amber-400 border border-gray-800">
               GIF
             </span>
           )}
-          {exercise.image_urls && exercise.image_urls.length > 0 && (
+          {uniqueImages.length > 0 && (
             <span className="px-2 py-0.5 rounded-md bg-gray-900/80 backdrop-blur text-[10px] font-semibold text-sky-400 border border-gray-800">
-              {exercise.image_urls.length} Fotos
+              {uniqueImages.length} Fotos
             </span>
           )}
         </div>
