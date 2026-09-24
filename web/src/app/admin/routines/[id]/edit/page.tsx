@@ -548,14 +548,25 @@ export default function EditRoutinePage() {
 
       if (routineUpdateErr) throw routineUpdateErr;
 
-      // 2. Cargar días existentes de la rutina para actualizar en su lugar y preservar IDs (clave para no romper historial de sesiones)
+      // 2. Cargar días existentes de la rutina ordenados
       const { data: existingDays } = await supabase
         .from('routine_days')
-        .select('id')
-        .eq('routine_id', routineId);
+        .select('id, order_index')
+        .eq('routine_id', routineId)
+        .order('order_index', { ascending: true });
 
-      const existingDayIds = new Set((existingDays || []).map((d) => d.id));
+      const existingDayList = existingDays || [];
+      const existingDayIds = new Set(existingDayList.map((d) => d.id));
       const keptDayIds = new Set<string>();
+
+      // Paso anti-colisión: desplazar temporalmente los order_index existentes a valores negativos
+      // para evitar colisiones con el constraint unique "uq_routine_day_order" (routine_id, order_index)
+      for (const [i, ed] of existingDayList.entries()) {
+        await supabase
+          .from('routine_days')
+          .update({ order_index: -1000 - i })
+          .eq('id', ed.id);
+      }
 
       for (const [dayIdx, day] of days.entries()) {
         const dayPayload: any = {
@@ -565,7 +576,12 @@ export default function EditRoutinePage() {
           order_index: dayIdx,
         };
 
+        // Identificar día existente: por day.id si existe, o por coincidencia posicional en existingDayList
         let dayId = day.id;
+        if (!dayId && existingDayList[dayIdx]) {
+          dayId = existingDayList[dayIdx].id;
+        }
+
         if (dayId && existingDayIds.has(dayId)) {
           const { error: dUpdateErr } = await supabase
             .from('routine_days')
@@ -584,14 +600,25 @@ export default function EditRoutinePage() {
           keptDayIds.add(newDay.id);
         }
 
-        // Obtener ejercicios existentes de este día
+        // Obtener ejercicios existentes de este día ordenados
         const { data: existingRx } = await supabase
           .from('routine_exercises')
-          .select('id')
-          .eq('routine_day_id', dayId);
+          .select('id, order_index, exercise_id')
+          .eq('routine_day_id', dayId)
+          .order('order_index', { ascending: true });
 
-        const existingRxIds = new Set((existingRx || []).map((r) => r.id));
+        const existingRxList = existingRx || [];
+        const existingRxIds = new Set(existingRxList.map((r) => r.id));
         const keptRxIds = new Set<string>();
+
+        // Paso anti-colisión: desplazar temporalmente order_index de ejercicios existentes
+        // para evitar colisión con "uq_routine_exercise_order" (routine_day_id, order_index)
+        for (const [i, erx] of existingRxList.entries()) {
+          await supabase
+            .from('routine_exercises')
+            .update({ order_index: -1000 - i })
+            .eq('id', erx.id);
+        }
 
         for (const [exIdx, ex] of day.exercises.entries()) {
           const rxPayload = {
@@ -601,7 +628,12 @@ export default function EditRoutinePage() {
             notes: ex.notes ? `[${ex.custom_name}] ${ex.notes}` : ex.custom_name,
           };
 
+          // Identificar ejercicio existente: por ex.id, o por coincidencia en existingRxList
           let rxId = ex.id;
+          if (!rxId && existingRxList[exIdx]) {
+            rxId = existingRxList[exIdx].id;
+          }
+
           if (rxId && existingRxIds.has(rxId)) {
             const { error: rxUpdateErr } = await supabase
               .from('routine_exercises')
@@ -620,26 +652,42 @@ export default function EditRoutinePage() {
             keptRxIds.add(newRx.id);
           }
 
-          // Obtener series existentes para este ejercicio
+          // Obtener series existentes para este ejercicio ordenadas
           const { data: existingSets } = await supabase
             .from('routine_exercise_sets')
-            .select('id')
-            .eq('routine_exercise_id', rxId);
+            .select('id, set_number')
+            .eq('routine_exercise_id', rxId)
+            .order('set_number', { ascending: true });
 
-          const existingSetIds = new Set((existingSets || []).map((s) => s.id));
+          const existingSetList = existingSets || [];
+          const existingSetIds = new Set(existingSetList.map((s) => s.id));
           const keptSetIds = new Set<string>();
 
-          for (const s of ex.sets) {
+          // Paso anti-colisión: desplazar temporalmente set_number de series existentes
+          // para evitar colisión con "uq_routine_set_number" (routine_exercise_id, set_number)
+          for (const [i, est] of existingSetList.entries()) {
+            await supabase
+              .from('routine_exercise_sets')
+              .update({ set_number: -1000 - i })
+              .eq('id', est.id);
+          }
+
+          for (const [sIdx, s] of ex.sets.entries()) {
             const setPayload = {
               routine_exercise_id: rxId,
-              set_number: s.set_number,
+              set_number: s.set_number || sIdx + 1,
               target_reps: s.target_reps,
               target_weight_kg: s.target_weight_kg,
               target_rpe: s.target_rpe,
               rest_seconds: s.rest_seconds,
             };
 
+            // Identificar serie existente: por s.id, o por coincidencia en existingSetList
             let sId = s.id;
+            if (!sId && existingSetList[sIdx]) {
+              sId = existingSetList[sIdx].id;
+            }
+
             if (sId && existingSetIds.has(sId)) {
               const { error: sUpdateErr } = await supabase
                 .from('routine_exercise_sets')
