@@ -17,8 +17,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/pectorals/barbell-bench-press.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/da0e4d00-4e7f-446b-9e28-c261bd079cd4/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/da0e4d00-4e7f-446b-9e28-c261bd079cd4/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/da0e4d00-4e7f-446b-9e28-c261bd079cd4/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/da0e4d00-4e7f-446b-9e28-c261bd079cd4/phase-1-v2.png"
     ]
   },
   {
@@ -28,8 +28,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/pectorals/dumbbell-incline-bench-press.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/8563830d-80aa-4908-8896-503aa2590685/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/8563830d-80aa-4908-8896-503aa2590685/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/8563830d-80aa-4908-8896-503aa2590685/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/8563830d-80aa-4908-8896-503aa2590685/phase-1-v2.png"
     ]
   },
   {
@@ -50,8 +50,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/pectorals/dumbbell-bench-press.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/ab3d3faa-305d-493b-852a-6ee3f773e007/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/ab3d3faa-305d-493b-852a-6ee3f773e007/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/ab3d3faa-305d-493b-852a-6ee3f773e007/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/ab3d3faa-305d-493b-852a-6ee3f773e007/phase-1-v2.png"
     ]
   },
   {
@@ -138,8 +138,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/pectorals/cable-middle-fly.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/73ae0921-d76a-4f3d-89bd-48b8663c59cb/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/73ae0921-d76a-4f3d-89bd-48b8663c59cb/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/73ae0921-d76a-4f3d-89bd-48b8663c59cb/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/73ae0921-d76a-4f3d-89bd-48b8663c59cb/phase-1-v2.png"
     ]
   },
   {
@@ -182,8 +182,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/lats/pull-up.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/53c0cf2b-3bc7-4e4d-aca2-0f0a37d6c6b5/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/53c0cf2b-3bc7-4e4d-aca2-0f0a37d6c6b5/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/53c0cf2b-3bc7-4e4d-aca2-0f0a37d6c6b5/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/53c0cf2b-3bc7-4e4d-aca2-0f0a37d6c6b5/phase-1-v2.png"
     ]
   },
   {
@@ -215,8 +215,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/lats/cable-lateral-pulldown-with-v-bar.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/b4a8edb1-43e0-469d-9157-04301a6f3ea3/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/b4a8edb1-43e0-469d-9157-04301a6f3ea3/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/b4a8edb1-43e0-469d-9157-04301a6f3ea3/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/b4a8edb1-43e0-469d-9157-04301a6f3ea3/phase-1-v2.png"
     ]
   },
   {
@@ -226,8 +226,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/upper-back/barbell-bent-over-row.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0907da50-063c-4cf4-a79a-60b7b18b28bc/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0907da50-063c-4cf4-a79a-60b7b18b28bc/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0907da50-063c-4cf4-a79a-60b7b18b28bc/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0907da50-063c-4cf4-a79a-60b7b18b28bc/phase-1-v2.png"
     ]
   },
   {
@@ -237,8 +237,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/upper-back/dumbbell-one-arm-bent-over-row.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/ccee75aa-e279-41fd-bafb-4dd09e27be1b/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/ccee75aa-e279-41fd-bafb-4dd09e27be1b/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/ccee75aa-e279-41fd-bafb-4dd09e27be1b/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/ccee75aa-e279-41fd-bafb-4dd09e27be1b/phase-1-v2.png"
     ]
   },
   {
@@ -270,8 +270,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/lats/cable-pushdown-straight-arm-v-2.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/79f6c270-deb9-407e-a31d-a7ee6824b180/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/79f6c270-deb9-407e-a31d-a7ee6824b180/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/79f6c270-deb9-407e-a31d-a7ee6824b180/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/79f6c270-deb9-407e-a31d-a7ee6824b180/phase-1-v2.png"
     ]
   },
   {
@@ -347,8 +347,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/delts/barbell-standing-wide-military-press.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/7ee86628-5028-4d8b-8d99-2bd3d2c914e9/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/7ee86628-5028-4d8b-8d99-2bd3d2c914e9/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/7ee86628-5028-4d8b-8d99-2bd3d2c914e9/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/7ee86628-5028-4d8b-8d99-2bd3d2c914e9/phase-1-v2.png"
     ]
   },
   {
@@ -358,8 +358,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/delts/dumbbell-seated-shoulder-press.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/f9423dcc-6bc7-46b8-ba03-e54c8c0674ac/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/f9423dcc-6bc7-46b8-ba03-e54c8c0674ac/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/f9423dcc-6bc7-46b8-ba03-e54c8c0674ac/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/f9423dcc-6bc7-46b8-ba03-e54c8c0674ac/phase-1-v2.png"
     ]
   },
   {
@@ -435,8 +435,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/delts/dumbbell-incline-rear-lateral-raise.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/62903171-c974-4e12-86d4-d244908d1ab2/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/62903171-c974-4e12-86d4-d244908d1ab2/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/62903171-c974-4e12-86d4-d244908d1ab2/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/62903171-c974-4e12-86d4-d244908d1ab2/phase-1-v2.png"
     ]
   },
   {
@@ -512,8 +512,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/glutes/sled-45-leg-press.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/fa52daa3-9e0f-4032-b2dc-290ed5dc6fd9/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/fa52daa3-9e0f-4032-b2dc-290ed5dc6fd9/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/fa52daa3-9e0f-4032-b2dc-290ed5dc6fd9/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/fa52daa3-9e0f-4032-b2dc-290ed5dc6fd9/phase-1-v2.png"
     ]
   },
   {
@@ -589,8 +589,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/glutes/barbell-step-up.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/72eda55f-9710-48f3-bc51-b3adfee8ea78/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/72eda55f-9710-48f3-bc51-b3adfee8ea78/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/72eda55f-9710-48f3-bc51-b3adfee8ea78/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/72eda55f-9710-48f3-bc51-b3adfee8ea78/phase-1-v2.png"
     ]
   },
   {
@@ -600,8 +600,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/glutes/dumbbell-step-up.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0fa59765-a05b-4d48-bac0-9c1c17d974e3/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0fa59765-a05b-4d48-bac0-9c1c17d974e3/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0fa59765-a05b-4d48-bac0-9c1c17d974e3/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0fa59765-a05b-4d48-bac0-9c1c17d974e3/phase-1-v2.png"
     ]
   },
   {
@@ -699,8 +699,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/glutes/barbell-glute-bridge-two-legs-on-bench-male.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0225b3a0-fb91-4c67-aa27-3d8213ba6776/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0225b3a0-fb91-4c67-aa27-3d8213ba6776/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0225b3a0-fb91-4c67-aa27-3d8213ba6776/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0225b3a0-fb91-4c67-aa27-3d8213ba6776/phase-1-v2.png"
     ]
   },
   {
@@ -732,8 +732,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/glutes/barbell-lunge.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/e7e0e63c-0b3f-4baf-81c8-18ce8c84e1c4/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/e7e0e63c-0b3f-4baf-81c8-18ce8c84e1c4/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/e7e0e63c-0b3f-4baf-81c8-18ce8c84e1c4/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/e7e0e63c-0b3f-4baf-81c8-18ce8c84e1c4/phase-1-v2.png"
     ]
   },
   {
@@ -743,8 +743,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/glutes/walking-lunge.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/9eb95a08-c119-40d6-9914-9dc4f68708af/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/9eb95a08-c119-40d6-9914-9dc4f68708af/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/9eb95a08-c119-40d6-9914-9dc4f68708af/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/9eb95a08-c119-40d6-9914-9dc4f68708af/phase-1-v2.png"
     ]
   },
   {
@@ -919,8 +919,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/triceps/barbell-lying-triceps-extension.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/f9c6f94a-c6eb-4a1b-a71b-891f90a8716b/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/f9c6f94a-c6eb-4a1b-a71b-891f90a8716b/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/f9c6f94a-c6eb-4a1b-a71b-891f90a8716b/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/f9c6f94a-c6eb-4a1b-a71b-891f90a8716b/phase-1-v2.png"
     ]
   },
   {
@@ -974,8 +974,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/triceps/cable-one-arm-tricep-pushdown.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/734ff01a-6ea0-48e2-b40d-93877348dcdd/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/734ff01a-6ea0-48e2-b40d-93877348dcdd/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/734ff01a-6ea0-48e2-b40d-93877348dcdd/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/734ff01a-6ea0-48e2-b40d-93877348dcdd/phase-1-v2.png"
     ]
   },
   {
@@ -1018,8 +1018,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/abs/wheel-rollerout.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/8abc13d0-3b10-483c-b95b-c150437e62fe/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/8abc13d0-3b10-483c-b95b-c150437e62fe/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/8abc13d0-3b10-483c-b95b-c150437e62fe/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/8abc13d0-3b10-483c-b95b-c150437e62fe/phase-1-v2.png"
     ]
   },
   {
@@ -1095,8 +1095,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/abs/jackknife-sit-up.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/bbe02c75-930d-452c-a743-d696f6517e9c/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/bbe02c75-930d-452c-a743-d696f6517e9c/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/bbe02c75-930d-452c-a743-d696f6517e9c/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/bbe02c75-930d-452c-a743-d696f6517e9c/phase-1-v2.png"
     ]
   },
   {
@@ -1161,8 +1161,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/forearms/barbell-palms-down-wrist-curl-over-a-bench.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/bac5b14d-1776-4757-83d8-589aa7b64dd9/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/bac5b14d-1776-4757-83d8-589aa7b64dd9/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/bac5b14d-1776-4757-83d8-589aa7b64dd9/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/bac5b14d-1776-4757-83d8-589aa7b64dd9/phase-1-v2.png"
     ]
   },
   {
@@ -1172,8 +1172,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/forearms/barbell-palms-up-wrist-curl-over-a-bench.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0de84c23-dc5a-492e-8904-07da895692a5/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0de84c23-dc5a-492e-8904-07da895692a5/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0de84c23-dc5a-492e-8904-07da895692a5/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0de84c23-dc5a-492e-8904-07da895692a5/phase-1-v2.png"
     ]
   },
   {
@@ -1249,8 +1249,8 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "video_url": null,
     "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/cardio/cycle-cross-trainer.gif",
     "image_urls": [
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/15190d5b-7e33-4d65-bee8-137e7f680fe7/phase-0.png",
-      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/15190d5b-7e33-4d65-bee8-137e7f680fe7/phase-1.png"
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/15190d5b-7e33-4d65-bee8-137e7f680fe7/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/15190d5b-7e33-4d65-bee8-137e7f680fe7/phase-1-v2.png"
     ]
   },
   {

@@ -566,6 +566,20 @@ export default function ExerciseEditModal({
                   <ImageIcon className="w-3.5 h-3.5 text-sky-400" />
                   Galería de Fotos Técnicas ({imageUrls.length} activas)
                 </span>
+                {imageUrls.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm('¿Seguro que deseas eliminar todas las fotos técnicas de este ejercicio?')) {
+                        setImageUrls([]);
+                      }
+                    }}
+                    className="text-[11px] text-red-400 hover:text-red-300 font-semibold flex items-center gap-1 hover:underline"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Eliminar todas las fotos
+                  </button>
+                )}
               </label>
 
               {/* Cuadrícula de fotos existentes */}

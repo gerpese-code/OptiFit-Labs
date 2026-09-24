@@ -440,12 +440,83 @@ export default function EditRoutinePage() {
       }
 
       setDays(updated);
+      await syncExerciseMediaToDatabase(ex.exercise_id, ex.custom_name, ex.muscle_group, ex.notes, ex.image_urls || [], ex.gif_url, ex.video_url);
     } catch (err: any) {
       alert(`Error al subir archivo: ${err.message}`);
     } finally {
       setMediaUploadLoading(false);
       setMediaTarget(null);
     }
+  };
+
+  const syncExerciseMediaToDatabase = async (exerciseId: string, customName: string, muscleGroup: string, notes: string, imageUrls: string[], gifUrl: string | null, videoUrl: string | null) => {
+    if (!exerciseId) return;
+    try {
+      await fetch('/api/admin/exercises/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: exerciseId,
+          name: customName,
+          muscle_group: muscleGroup,
+          description: notes || null,
+          image_urls: imageUrls,
+          gif_url: gifUrl,
+          video_url: videoUrl,
+        }),
+      });
+    } catch (err) {
+      console.error('Error al sincronizar multimedia de ejercicio con base de datos:', err);
+    }
+  };
+
+  const handleDeleteImageFromExercise = async (dayIdx: number, exIdx: number, imgIdx: number) => {
+    if (!confirm('¿Seguro que deseas eliminar esta foto del ejercicio? Se quitará de la rutina y del catálogo general.')) return;
+
+    const updated = [...days];
+    const ex = updated[dayIdx].exercises[exIdx];
+    const currentImgs = Array.from(new Set(((ex.image_urls && ex.image_urls.length > 0) ? ex.image_urls : (ex.image_url ? [ex.image_url] : [])).filter(Boolean)));
+
+    currentImgs.splice(imgIdx, 1);
+    ex.image_urls = currentImgs;
+    ex.image_url = currentImgs[0] || null;
+    setDays(updated);
+
+    await syncExerciseMediaToDatabase(ex.exercise_id, ex.custom_name, ex.muscle_group, ex.notes, currentImgs, ex.gif_url, ex.video_url);
+  };
+
+  const handleDeleteGifFromExercise = async (dayIdx: number, exIdx: number) => {
+    if (!confirm('¿Seguro que deseas eliminar la animación GIF de este ejercicio? Se quitará de la rutina y del catálogo general.')) return;
+
+    const updated = [...days];
+    const ex = updated[dayIdx].exercises[exIdx];
+    ex.gif_url = null;
+    setDays(updated);
+
+    await syncExerciseMediaToDatabase(ex.exercise_id, ex.custom_name, ex.muscle_group, ex.notes, ex.image_urls || [], null, ex.video_url);
+  };
+
+  const handleDeleteVideoFromExercise = async (dayIdx: number, exIdx: number) => {
+    if (!confirm('¿Seguro que deseas eliminar el video demostrativo de este ejercicio?')) return;
+
+    const updated = [...days];
+    const ex = updated[dayIdx].exercises[exIdx];
+    ex.video_url = null;
+    setDays(updated);
+
+    await syncExerciseMediaToDatabase(ex.exercise_id, ex.custom_name, ex.muscle_group, ex.notes, ex.image_urls || [], ex.gif_url, null);
+  };
+
+  const handleClearAllPhotos = async (dayIdx: number, exIdx: number) => {
+    if (!confirm('¿Seguro que deseas eliminar todas las fotos de este ejercicio?')) return;
+
+    const updated = [...days];
+    const ex = updated[dayIdx].exercises[exIdx];
+    ex.image_urls = [];
+    ex.image_url = null;
+    setDays(updated);
+
+    await syncExerciseMediaToDatabase(ex.exercise_id, ex.custom_name, ex.muscle_group, ex.notes, [], ex.gif_url, ex.video_url);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -878,6 +949,20 @@ export default function EditRoutinePage() {
                                         loading="lazy"
                                       />
                                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
+
+                                      {/* Botón eliminar esta foto (Admin) */}
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteImageFromExercise(dayIdx, exIdx, imgIdx);
+                                        }}
+                                        className="absolute top-1.5 right-1.5 p-1.5 bg-red-600/90 hover:bg-red-500 text-white rounded-lg shadow-md transition opacity-80 group-hover:opacity-100 flex items-center justify-center z-10"
+                                        title="Eliminar esta foto del ejercicio"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+
                                       <span className="absolute bottom-1.5 left-1.5 right-1.5 text-[9px] font-black px-2 py-0.5 rounded bg-gray-950/90 text-emerald-300 border border-emerald-800/50 backdrop-blur truncate">
                                         {imgIdx === 0 ? '1. Fase Inicial / Descenso' : '2. Fase Final / Contracción'}
                                       </span>
@@ -894,6 +979,20 @@ export default function EditRoutinePage() {
                                         loading="lazy"
                                       />
                                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
+
+                                      {/* Botón eliminar GIF (Admin) */}
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteGifFromExercise(dayIdx, exIdx);
+                                        }}
+                                        className="absolute top-1.5 right-1.5 p-1.5 bg-red-600/90 hover:bg-red-500 text-white rounded-lg shadow-md transition opacity-80 group-hover:opacity-100 flex items-center justify-center z-10"
+                                        title="Eliminar animación GIF del ejercicio"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+
                                       <span className="absolute bottom-1.5 left-1.5 text-[9px] font-black px-2 py-0.5 rounded bg-gray-950/90 text-amber-300 border border-amber-800/50 backdrop-blur">
                                         GIF Dinámico
                                       </span>
@@ -906,6 +1005,17 @@ export default function EditRoutinePage() {
                             {/* Si hay Video */}
                             {ex.video_url && (
                               <div className="relative rounded-xl overflow-hidden border border-gray-800 bg-gray-950 aspect-[4/3] flex flex-col items-center justify-center p-2 text-center group">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteVideoFromExercise(dayIdx, exIdx);
+                                  }}
+                                  className="absolute top-1.5 right-1.5 p-1.5 bg-red-600/90 hover:bg-red-500 text-white rounded-lg shadow-md transition opacity-80 group-hover:opacity-100 flex items-center justify-center z-10"
+                                  title="Eliminar video del ejercicio"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
                                 <Film className="w-6 h-6 text-emerald-400 mb-1 group-hover:scale-110 transition-transform" />
                                 <span className="text-[10px] text-gray-200 font-bold">Video demostrativo</span>
                                 <a
@@ -999,92 +1109,188 @@ export default function EditRoutinePage() {
         ))}
       </div>
 
-      {mediaTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-800">
-              <h3 className="text-sm font-bold text-white flex items-center">
-                <UploadCloud className="w-4 h-4 mr-2 text-emerald-400" />
-                Adjuntar Video / GIF / Foto al Ejercicio
-              </h3>
-              <button
-                type="button"
-                onClick={() => setMediaTarget(null)}
-                className="text-gray-400 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
+      {mediaTarget && (() => {
+        const curDay = days[mediaTarget.dayIdx];
+        const curEx = curDay?.exercises[mediaTarget.exIdx];
+        if (!curEx) return null;
 
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block text-gray-300 font-semibold mb-1">
-                  Subir Video Demostrativo (.mp4, .webm)
-                </label>
-                <input
-                  type="file"
-                  accept="video/mp4,video/webm,video/quicktime"
-                  onChange={(e) => {
-                    if (e.target.files?.[0]) {
-                      handleUploadMediaForExercise(e.target.files[0], 'video');
-                    }
-                  }}
-                  className="file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:bg-gray-800 file:text-emerald-400 cursor-pointer"
-                />
+        const curImages = Array.from(new Set(((curEx.image_urls && curEx.image_urls.length > 0) ? curEx.image_urls : (curEx.image_url ? [curEx.image_url] : [])).filter(Boolean)));
+        const hasGif = Boolean(curEx.gif_url && curEx.gif_url.toLowerCase().includes('.gif'));
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-800">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center">
+                    <UploadCloud className="w-4 h-4 mr-2 text-emerald-400" />
+                    Gestión Multimedia de Ejercicio
+                  </h3>
+                  <p className="text-xs text-emerald-400 font-semibold mt-0.5">
+                    {curEx.custom_name}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMediaTarget(null)}
+                  className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800"
+                >
+                  ✕
+                </button>
               </div>
 
-              <div>
-                <label className="block text-gray-300 font-semibold mb-1">
-                  Subir GIF Animado (.gif)
-                </label>
-                <input
-                  type="file"
-                  accept="image/gif"
-                  onChange={(e) => {
-                    if (e.target.files?.[0]) {
-                      handleUploadMediaForExercise(e.target.files[0], 'gif');
-                    }
-                  }}
-                  className="file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:bg-gray-800 file:text-emerald-400 cursor-pointer"
-                />
+              {/* Multimedia Actual con botones de eliminación */}
+              {(curImages.length > 0 || hasGif || curEx.video_url) ? (
+                <div className="space-y-2.5 p-3 bg-gray-950/80 border border-gray-800 rounded-xl">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <ImageIcon className="w-3.5 h-3.5 text-emerald-400" />
+                      Multimedia Actual del Ejercicio
+                    </span>
+                    {curImages.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleClearAllPhotos(mediaTarget.dayIdx, mediaTarget.exIdx)}
+                        className="text-[10px] text-red-400 hover:text-red-300 font-semibold hover:underline flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Eliminar todas las fotos
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+                    {curImages.map((img, iIdx) => (
+                      <div key={iIdx} className="relative aspect-video rounded-lg overflow-hidden border border-gray-800 bg-gray-900 group">
+                        <img src={img} alt={`Foto ${iIdx + 1}`} className="w-full h-full object-cover" />
+                        <span className="absolute bottom-1 left-1 text-[8px] font-bold bg-black/80 text-emerald-300 px-1 py-0.5 rounded">
+                          Fase {iIdx + 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteImageFromExercise(mediaTarget.dayIdx, mediaTarget.exIdx, iIdx)}
+                          className="absolute top-1 right-1 p-1 bg-red-600/90 hover:bg-red-500 text-white rounded shadow text-[9px] flex items-center gap-0.5"
+                          title="Eliminar esta foto"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+
+                    {hasGif && (
+                      <div className="relative aspect-video rounded-lg overflow-hidden border border-amber-800/60 bg-gray-900 group">
+                        <img src={curEx.gif_url!} alt="GIF" className="w-full h-full object-cover" />
+                        <span className="absolute bottom-1 left-1 text-[8px] font-bold bg-black/80 text-amber-300 px-1 py-0.5 rounded">
+                          GIF
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteGifFromExercise(mediaTarget.dayIdx, mediaTarget.exIdx)}
+                          className="absolute top-1 right-1 p-1 bg-red-600/90 hover:bg-red-500 text-white rounded shadow text-[9px] flex items-center gap-0.5"
+                          title="Eliminar animación GIF"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+
+                    {curEx.video_url && (
+                      <div className="relative aspect-video rounded-lg overflow-hidden border border-gray-800 bg-gray-900 flex flex-col items-center justify-center p-1 text-center">
+                        <Film className="w-4 h-4 text-emerald-400 mb-0.5" />
+                        <span className="text-[9px] text-gray-300 truncate max-w-[80px]">Video</span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteVideoFromExercise(mediaTarget.dayIdx, mediaTarget.exIdx)}
+                          className="absolute top-1 right-1 p-1 bg-red-600/90 hover:bg-red-500 text-white rounded shadow text-[9px]"
+                          title="Eliminar video"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-gray-950/60 border border-dashed border-gray-800 rounded-xl text-center text-xs text-gray-500">
+                  Este ejercicio no tiene fotos ni GIF asignados actualmente.
+                </div>
+              )}
+
+              {/* Sección Subir o Reemplazar */}
+              <div className="space-y-3 text-xs pt-1">
+                <span className="text-[11px] font-bold text-gray-300 uppercase tracking-wider block">
+                  Subir o Reemplazar Multimedia
+                </span>
+
+                <div>
+                  <label className="block text-gray-300 font-semibold mb-1">
+                    Subir Foto / Infografía (.jpg, .png, .webp)
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) {
+                        handleUploadMediaForExercise(e.target.files[0], 'image');
+                      }
+                    }}
+                    className="w-full file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:bg-gray-800 file:text-emerald-400 cursor-pointer"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-300 font-semibold mb-1">
+                    Subir GIF Animado (.gif)
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/gif"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) {
+                        handleUploadMediaForExercise(e.target.files[0], 'gif');
+                      }
+                    }}
+                    className="w-full file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:bg-gray-800 file:text-emerald-400 cursor-pointer"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-300 font-semibold mb-1">
+                    Subir Video Demostrativo (.mp4, .webm)
+                  </label>
+                  <input
+                    type="file"
+                    accept="video/mp4,video/webm,video/quicktime"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) {
+                        handleUploadMediaForExercise(e.target.files[0], 'video');
+                      }
+                    }}
+                    className="w-full file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:bg-gray-800 file:text-emerald-400 cursor-pointer"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-gray-300 font-semibold mb-1">
-                  Subir Foto / Infografía (.jpg, .png, .webp)
-                </label>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={(e) => {
-                    if (e.target.files?.[0]) {
-                      handleUploadMediaForExercise(e.target.files[0], 'image');
-                    }
-                  }}
-                  className="file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:bg-gray-800 file:text-emerald-400 cursor-pointer"
-                />
-              </div>
-            </div>
+              {mediaUploadLoading && (
+                <div className="py-2 text-xs text-emerald-400 flex items-center justify-center animate-pulse font-medium">
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Subiendo archivo al almacenamiento y actualizando catálogo...
+                </div>
+              )}
 
-            {mediaUploadLoading && (
-              <div className="py-2 text-xs text-emerald-400 flex items-center justify-center animate-pulse font-medium">
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Subiendo archivo al almacenamiento...
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setMediaTarget(null)}
+                  className="px-4 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs font-semibold"
+                >
+                  Cerrar
+                </button>
               </div>
-            )}
-
-            <div className="pt-2 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setMediaTarget(null)}
-                className="px-4 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs font-semibold"
-              >
-                Cerrar
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <ExerciseSelectorModal
         isOpen={selectorTargetDayIndex !== null}
