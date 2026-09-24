@@ -399,27 +399,29 @@ export default function ExerciseSelectorModal({
               </button>
             </div>
 
-            {/* Secuencia de Imágenes de Ejecución (Inicio y Contracción) */}
-            {previewExercise.image_urls && previewExercise.image_urls.length > 0 ? (
+            {/* Secuencia de Imágenes de Ejecución (Inicio, Contracción y GIF) */}
+            {((previewExercise.image_urls && previewExercise.image_urls.length > 0) || previewExercise.gif_url) ? (
               <div className="space-y-2">
                 <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
                   Secuencia Técnica Biomecánica:
                 </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="bg-gray-950 border border-gray-800 rounded-2xl overflow-hidden">
-                    <div className="relative aspect-[4/3]">
-                      <img
-                        src={previewExercise.image_urls[0]}
-                        alt="Fase Inicial"
-                        className="w-full h-full object-cover"
-                      />
-                      <span className="absolute bottom-2 left-2 text-[10px] font-bold bg-gray-950/80 backdrop-blur px-2 py-0.5 rounded text-emerald-400 border border-gray-800">
-                        1. Posición Inicial (Estiramiento)
-                      </span>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {previewExercise.image_urls && previewExercise.image_urls[0] && (
+                    <div className="bg-gray-950 border border-gray-800 rounded-2xl overflow-hidden">
+                      <div className="relative aspect-[4/3]">
+                        <img
+                          src={previewExercise.image_urls[0]}
+                          alt="Fase Inicial"
+                          className="w-full h-full object-cover"
+                        />
+                        <span className="absolute bottom-2 left-2 text-[10px] font-bold bg-gray-950/80 backdrop-blur px-2 py-0.5 rounded text-emerald-400 border border-gray-800">
+                          1. Posición Inicial (Estiramiento)
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
-                  {previewExercise.image_urls.length > 1 ? (
+                  {previewExercise.image_urls && previewExercise.image_urls[1] && (
                     <div className="bg-gray-950 border border-gray-800 rounded-2xl overflow-hidden">
                       <div className="relative aspect-[4/3]">
                         <img
@@ -432,7 +434,22 @@ export default function ExerciseSelectorModal({
                         </span>
                       </div>
                     </div>
-                  ) : null}
+                  )}
+
+                  {previewExercise.gif_url && (
+                    <div className="bg-gray-950 border border-gray-800 rounded-2xl overflow-hidden">
+                      <div className="relative aspect-[4/3]">
+                        <img
+                          src={previewExercise.gif_url}
+                          alt="Animación Dinámica"
+                          className="w-full h-full object-cover"
+                        />
+                        <span className="absolute bottom-2 left-2 text-[10px] font-bold bg-gray-950/80 backdrop-blur px-2 py-0.5 rounded text-amber-300 border border-gray-800">
+                          GIF Dinámico
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : null}
