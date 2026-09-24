@@ -1274,5 +1274,17 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/deff0e8f-8b18-4d7d-9e62-d4fb93dcd625/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/deff0e8f-8b18-4d7d-9e62-d4fb93dcd625/phase-1.png"
     ]
+  },
+  {
+    "name": "Hiperextensiones a 45° para Femorales / Isquiosurales (Banco de Lumbares)",
+    "muscle_group": "Isquiosurales",
+    "description": "Aislamiento de femorales e isquiosurales en banco a 45° anulando la tensión lumbar. Ajustar el cojín por debajo de la cresta ilíaca para liberar la flexión de cadera. Mantener columna en ligera flexión (espalda redondeada y mentón al pecho) para inhibir los erectores espinales. Elevar el torso mediante bisagra de cadera traccionando exclusivamente con los femorales y glúteos. Bajar en 3 segundos sintiendo el estiramiento profundo.",
+    "video_url": null,
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/spine/hyperextension.gif",
+    "image_urls": [
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/9daa2a61-80b8-4d24-9adc-1c6556badbf4/phase-0-v2.png",
+      "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/9daa2a61-80b8-4d24-9adc-1c6556badbf4/phase-1-v2.png"
+    ]
   }
 ];
+
