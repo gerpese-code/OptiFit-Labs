@@ -15,7 +15,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Pecho",
     "description": "Básico multiarticular para desarrollo del pectoral mayor. Retracción escapular activa, pies firmes en el suelo y arco lumbar natural. Descender la barra controlada hasta el tercio inferior del esternón y empujar con fuerza.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/pectorals/band-bench-press.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/pectorals/barbell-bench-press.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/da0e4d00-4e7f-446b-9e28-c261bd079cd4/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/da0e4d00-4e7f-446b-9e28-c261bd079cd4/phase-1.png"
@@ -26,7 +26,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Pecho",
     "description": "Banco a 30°-45°. Máximo reclutamiento del haz clavicular (pecho superior). Mantener los codos a unos 45°-60° respecto al torso para proteger los hombros y lograr máximo rango de estiramiento.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/pectorals/barbell-incline-bench-press.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/pectorals/dumbbell-incline-bench-press.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/8563830d-80aa-4908-8896-503aa2590685/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/8563830d-80aa-4908-8896-503aa2590685/phase-1.png"
@@ -48,7 +48,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Pecho",
     "description": "Permite mayor recorrido articular y libertad en las muñecas que la barra. Descender hasta sentir un estiramiento profundo en el pectoral y juntar arriba sin chocar las mancuernas.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/abs/band-horizontal-pallof-press.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/pectorals/dumbbell-bench-press.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/ab3d3faa-305d-493b-852a-6ee3f773e007/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/ab3d3faa-305d-493b-852a-6ee3f773e007/phase-1.png"
@@ -136,7 +136,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Pecho",
     "description": "Aislamiento de la parte media del pecho con trayectoria horizontal pura. Excelente congestión.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/delts/dumbbell-iron-cross.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/pectorals/cable-middle-fly.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/73ae0921-d76a-4f3d-89bd-48b8663c59cb/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/73ae0921-d76a-4f3d-89bd-48b8663c59cb/phase-1.png"
@@ -180,7 +180,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Espalda",
     "description": "Rey de los ejercicios de tracción vertical. Agarre prono algo más ancho que los hombros. Iniciar deprimiendo escápulas y llevar el pecho hacia la barra sin balanceo.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/biceps/biceps-narrow-pull-ups.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/lats/pull-up.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/53c0cf2b-3bc7-4e4d-aca2-0f0a37d6c6b5/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/53c0cf2b-3bc7-4e4d-aca2-0f0a37d6c6b5/phase-1.png"
@@ -213,7 +213,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Espalda",
     "description": "Agarre neutro en V. Permite mayor recorrido y tracción dirigida hacia las inserciones inferiores del dorsal.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/lats/band-close-grip-pulldown.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/lats/cable-lateral-pulldown-with-v-bar.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/b4a8edb1-43e0-469d-9157-04301a6f3ea3/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/b4a8edb1-43e0-469d-9157-04301a6f3ea3/phase-1.png"
@@ -224,7 +224,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Espalda",
     "description": "Multiarticular de densidad dorsal. Espalda recta y torso a 45°. Tirar de la barra hacia la cintura baja dirigiendo el movimiento con los codos.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/delts/barbell-rear-delt-row.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/upper-back/barbell-bent-over-row.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0907da50-063c-4cf4-a79a-60b7b18b28bc/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0907da50-063c-4cf4-a79a-60b7b18b28bc/phase-1.png"
@@ -235,7 +235,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Espalda",
     "description": "Apoyo en banco plano. Permite gran estiramiento del dorsal en la bajada y contracción completa arriba sin forzar la zona lumbar.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/delts/dumbbell-one-arm-upright-row.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/upper-back/dumbbell-one-arm-bent-over-row.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/ccee75aa-e279-41fd-bafb-4dd09e27be1b/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/ccee75aa-e279-41fd-bafb-4dd09e27be1b/phase-1.png"
@@ -268,7 +268,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Espalda",
     "description": "Aislamiento del dorsal ancho sin fatiga de brazos. Codos con leve flexión fija. Bajar la barra hacia los muslos describiendo un arco amplio.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/abs/crunch-on-stability-ball-arms-straight.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/lats/cable-pushdown-straight-arm-v-2.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/79f6c270-deb9-407e-a31d-a7ee6824b180/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/79f6c270-deb9-407e-a31d-a7ee6824b180/phase-1.png"
@@ -345,7 +345,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Hombros",
     "description": "Básico por excelencia para el deltoides anterior y lateral. Glúteos y abdomen firmes. Empujar la barra por delante de la cara hasta bloquear arriba con la cabeza alineada.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/delts/barbell-seated-behind-head-military-press.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/delts/barbell-standing-wide-military-press.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/7ee86628-5028-4d8b-8d99-2bd3d2c914e9/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/7ee86628-5028-4d8b-8d99-2bd3d2c914e9/phase-1.png"
@@ -356,7 +356,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Hombros",
     "description": "Respaldo casi a 90°. Empujar las mancuernas en trayectoria ligeramente convergente sin que lleguen a chocar arriba. Bajar controladamente hasta rozar la altura de las orejas.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/biceps/dumbbell-seated-biceps-curl-to-shoulder-press.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/delts/dumbbell-seated-shoulder-press.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/f9423dcc-6bc7-46b8-ba03-e54c8c0674ac/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/f9423dcc-6bc7-46b8-ba03-e54c8c0674ac/phase-1.png"
@@ -433,7 +433,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Hombros",
     "description": "Pecho apoyado en banco a 30°-45°. Aislamiento estricto del deltoides posterior sin balanceos.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/abs/lying-leg-raise-flat-bench.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/delts/dumbbell-incline-rear-lateral-raise.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/62903171-c974-4e12-86d4-d244908d1ab2/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/62903171-c974-4e12-86d4-d244908d1ab2/phase-1.png"
@@ -510,7 +510,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Cuádriceps",
     "description": "Permite mover grandes cargas con soporte para la espalda baja. Pies al ancho de hombros en el centro de la plataforma. Bajar hasta 90° sin despegar la pelvis del respaldo.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/calves/lever-seated-squat-calf-raise-on-leg-press-machine.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/glutes/sled-45-leg-press.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/fa52daa3-9e0f-4032-b2dc-290ed5dc6fd9/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/fa52daa3-9e0f-4032-b2dc-290ed5dc6fd9/phase-1.png"
@@ -587,7 +587,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Cuádriceps",
     "description": "Pisar firmemente sobre el cajón empujando desde el talón de la pierna superior sin impulsarse con la pierna de abajo.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/abs/barbell-rollerout-from-bench.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/glutes/barbell-step-up.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/72eda55f-9710-48f3-bc51-b3adfee8ea78/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/72eda55f-9710-48f3-bc51-b3adfee8ea78/phase-1.png"
@@ -598,7 +598,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Cuádriceps",
     "description": "Combina el empuje unilateral de cuádriceps con flexión explosiva de cadera y activación de glúteo.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/abs/lying-leg-raise-flat-bench.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/glutes/dumbbell-step-up.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0fa59765-a05b-4d48-bac0-9c1c17d974e3/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0fa59765-a05b-4d48-bac0-9c1c17d974e3/phase-1.png"
@@ -697,7 +697,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Glúteos",
     "description": "El ejercicio más eficiente para hipertrofia del glúteo mayor. Espalda alta apoyada en banco, espinillas verticales en la cima y retroversión pélvica con contracción de 1 segundo arriba.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/abs/barbell-rollerout-from-bench.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/glutes/barbell-glute-bridge-two-legs-on-bench-male.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0225b3a0-fb91-4c67-aa27-3d8213ba6776/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0225b3a0-fb91-4c67-aa27-3d8213ba6776/phase-1.png"
@@ -730,7 +730,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Glúteos",
     "description": "Pasos largos con ligera inclinación del torso hacia adelante para estirar y cargar al máximo los glúteos en cada zancada.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/glutes/barbell-glute-bridge-two-legs-on-bench-male.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/glutes/barbell-lunge.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/e7e0e63c-0b3f-4baf-81c8-18ce8c84e1c4/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/e7e0e63c-0b3f-4baf-81c8-18ce8c84e1c4/phase-1.png"
@@ -741,7 +741,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Glúteos",
     "description": "Volumen y congestión de glúteos y piernas sin impacto en la columna vertebral.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/abs/bodyweight-incline-side-plank.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/glutes/walking-lunge.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/9eb95a08-c119-40d6-9914-9dc4f68708af/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/9eb95a08-c119-40d6-9914-9dc4f68708af/phase-1.png"
@@ -917,7 +917,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Tríceps",
     "description": "Bajar la barra hacia la coronilla o ligeramente detrás de la cabeza para estirar la cabeza larga del tríceps.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/pectorals/barbell-decline-bench-press.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/triceps/barbell-lying-triceps-extension.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/f9c6f94a-c6eb-4a1b-a71b-891f90a8716b/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/f9c6f94a-c6eb-4a1b-a71b-891f90a8716b/phase-1.png"
@@ -972,7 +972,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Tríceps",
     "description": "Aislamiento sinérgico con agarre supino o neutro para afinar la definición y control neuromuscular.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/glutes/cable-standing-hip-extension.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/triceps/cable-one-arm-tricep-pushdown.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/734ff01a-6ea0-48e2-b40d-93877348dcdd/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/734ff01a-6ea0-48e2-b40d-93877348dcdd/phase-1.png"
@@ -1016,7 +1016,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Core / Abdomen",
     "description": "Fuerza extrema anti-extensión. Rodar hacia adelante manteniendo la pelvis en retroversión sin hundir la zona lumbar.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/abs/3-4-sit-up.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/abs/wheel-rollerout.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/8abc13d0-3b10-483c-b95b-c150437e62fe/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/8abc13d0-3b10-483c-b95b-c150437e62fe/phase-1.png"
@@ -1093,7 +1093,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Core / Abdomen",
     "description": "Flexión simultánea de torso y piernas en el centro formando una V con el cuerpo.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/abs/3-4-sit-up.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/abs/jackknife-sit-up.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/bbe02c75-930d-452c-a743-d696f6517e9c/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/bbe02c75-930d-452c-a743-d696f6517e9c/phase-1.png"
@@ -1170,7 +1170,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Antebrazos",
     "description": "Palmas hacia arriba. Dejar rodar la barra por los dedos y flexionar con fuerza los antebrazos.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/pectorals/push-up.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/forearms/barbell-palms-up-wrist-curl-over-a-bench.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0de84c23-dc5a-492e-8904-07da895692a5/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/0de84c23-dc5a-492e-8904-07da895692a5/phase-1.png"
@@ -1247,7 +1247,7 @@ export const DEFAULT_EXERCISES: PreloadedExercise[] = [
     "muscle_group": "Cardio",
     "description": "Ejercicio cardiovascular completo de cuerpo entero que involucra piernas, espalda y brazos en cada palada.",
     "video_url": null,
-    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/delts/smith-rear-delt-row.gif",
+    "gif_url": "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/cardio/cycle-cross-trainer.gif",
     "image_urls": [
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/15190d5b-7e33-4d65-bee8-137e7f680fe7/phase-0.png",
       "https://uvqkdcsetadyecgnyyem.supabase.co/storage/v1/object/public/exercise-media/exercises/15190d5b-7e33-4d65-bee8-137e7f680fe7/phase-1.png"
