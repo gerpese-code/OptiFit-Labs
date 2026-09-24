@@ -28,6 +28,9 @@ import {
   Activity,
   TrendingUp,
   Award,
+  ChevronDown,
+  ChevronUp,
+  CheckCircle2,
 } from 'lucide-react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -155,6 +158,123 @@ export default function ProgressScreen() {
 
   const handleApplyCustomRange = (start: string, end: string) => {
     setActiveRange(computeDateRange('custom', start, end));
+  };
+
+  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
+  const [sessionDetailsCache, setSessionDetailsCache] = useState<Record<string, any[]>>({});
+  const [loadingDetailsId, setLoadingDetailsId] = useState<string | null>(null);
+
+  const toggleExpandSession = async (session: WorkoutSession) => {
+    if (expandedSessionId === session.id) {
+      setExpandedSessionId(null);
+      return;
+    }
+
+    setExpandedSessionId(session.id);
+
+    if (sessionDetailsCache[session.id]) return;
+
+    if (session.notes) {
+      try {
+        const parsed = typeof session.notes === 'string' ? JSON.parse(session.notes) : session.notes;
+        if (parsed.exercises && Array.isArray(parsed.exercises) && parsed.exercises.length > 0) {
+          setSessionDetailsCache((prev) => ({
+            ...prev,
+            [session.id]: parsed.exercises,
+          }));
+          return;
+        }
+      } catch (_) {}
+    }
+
+    // Si no venía en notes, consultar workout_log_sets para esta sesión
+    setLoadingDetailsId(session.id);
+    try {
+      const { data: sets } = await supabase
+        .from('workout_log_sets')
+        .select(`
+          id,
+          routine_exercise_set_id,
+          set_number,
+          reps_completed,
+          weight_kg,
+          weight_logged,
+          unit_logged,
+          is_completed,
+          rpe
+        `)
+        .eq('session_id', session.id)
+        .order('set_number', { ascending: true });
+
+      if (sets && sets.length > 0) {
+        const setIds = sets.map((s: any) => s.routine_exercise_set_id).filter(Boolean);
+        const setMap: Record<string, { exerciseId: string; name: string; muscleGroup: string; imgUrl: string | null }> = {};
+
+        if (setIds.length > 0) {
+          const { data: rxSets } = await supabase
+            .from('routine_exercise_sets')
+            .select(`
+              id,
+              routine_exercises (
+                id,
+                exercise_id,
+                exercise:exercise_id (
+                  id,
+                  name,
+                  muscle_group,
+                  image_urls,
+                  gif_url
+                )
+              )
+            `)
+            .in('id', setIds);
+
+          (rxSets || []).forEach((item: any) => {
+            const ex = item.routine_exercises?.exercise;
+            if (ex) {
+              setMap[item.id] = {
+                exerciseId: ex.id,
+                name: ex.name,
+                muscleGroup: ex.muscle_group || 'General',
+                imgUrl: ex.image_urls?.[0] || ex.gif_url || null,
+              };
+            }
+          });
+        }
+
+        const groupedMap: Record<string, any> = {};
+        sets.forEach((st: any) => {
+          const detail = st.routine_exercise_set_id ? setMap[st.routine_exercise_set_id] : null;
+          const key = detail?.exerciseId || `set-${st.id}`;
+          if (!groupedMap[key]) {
+            groupedMap[key] = {
+              name: detail?.name || 'Ejercicio',
+              muscle_group: detail?.muscleGroup || '',
+              image_url: detail?.imgUrl || null,
+              sets: [],
+            };
+          }
+          groupedMap[key].sets.push({
+            set_number: st.set_number,
+            reps: st.reps_completed,
+            weight_kg: st.weight_kg,
+            unit: st.unit_logged || 'kg',
+            is_completed: st.is_completed,
+            rpe: st.rpe,
+          });
+        });
+
+        const list = Object.values(groupedMap);
+        setSessionDetailsCache((prev) => ({
+          ...prev,
+          [session.id]: list,
+        }));
+      }
+    } catch (e) {
+      console.warn('Error al recuperar desglose de sesión:', e);
+    } finally {
+      setLoadingDetailsId(null);
+    }
   };
 
   const loadProgressData = async () => {
@@ -598,6 +718,8 @@ export default function ProgressScreen() {
                 const isCompleted =
                   session.status === 'completed' ||
                   (session.completion_rate != null && session.completion_rate >= 80);
+                const isExpanded = expandedSessionId === session.id;
+                const sessionExercises = sessionDetailsCache[session.id] || null;
 
                 return (
                   <View key={session.id || `sess-${index}`} style={styles.timelineItem}>
@@ -656,7 +778,103 @@ export default function ProgressScreen() {
                             {session.completion_rate || 0}%
                           </Text>
                         </View>
+
+                        <TouchableOpacity
+                          style={styles.timelineExpandBtn}
+                          onPress={() => toggleExpandSession(session)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.timelineExpandBtnText}>
+                            {isExpanded
+                              ? (language === 'en' ? 'Hide' : 'Ocultar')
+                              : (language === 'en' ? 'View Sets' : 'Ver Series')}
+                          </Text>
+                          {isExpanded ? (
+                            <ChevronUp size={12} color="#34d399" style={{ marginLeft: 3 }} />
+                          ) : (
+                            <ChevronDown size={12} color="#94a3b8" style={{ marginLeft: 3 }} />
+                          )}
+                        </TouchableOpacity>
                       </View>
+
+                      {/* Desglose Expandido de Series Realizadas */}
+                      {isExpanded && (
+                        <View style={styles.expandedSessionBox}>
+                          {loadingDetailsId === session.id ? (
+                            <View style={styles.detailsLoadingBox}>
+                              <ActivityIndicator size="small" color="#10b981" />
+                              <Text style={styles.detailsLoadingText}>
+                                {language === 'en' ? 'Loading sets...' : 'Cargando series realizadas...'}
+                              </Text>
+                            </View>
+                          ) : sessionExercises && sessionExercises.length > 0 ? (
+                            <View style={styles.sessionExercisesList}>
+                              {sessionExercises.map((ex: any, exI: number) => {
+                                const completedCount = (ex.sets || []).filter((st: any) => st.is_completed).length;
+                                const totalCount = ex.sets?.length || 0;
+                                return (
+                                  <View key={exI} style={styles.sessionExerciseCard}>
+                                    <View style={styles.sessionExerciseHeader}>
+                                      <View style={{ flex: 1 }}>
+                                        <Text style={styles.sessionExerciseName} numberOfLines={1}>
+                                          {ex.name}
+                                        </Text>
+                                        {ex.muscle_group ? (
+                                          <Text style={styles.sessionExerciseMuscle}>
+                                            {ex.muscle_group}
+                                          </Text>
+                                        ) : null}
+                                      </View>
+                                      <View style={styles.sessionExerciseCountBadge}>
+                                        <Text style={styles.sessionExerciseCountText}>
+                                          {completedCount}/{totalCount}
+                                        </Text>
+                                      </View>
+                                    </View>
+
+                                    <View style={styles.sessionSetsList}>
+                                      {(ex.sets || []).map((st: any, stI: number) => {
+                                        const setWeightDisplay = toDisplayWeight(st.weight_kg ?? st.weight ?? 0);
+                                        return (
+                                          <View key={stI} style={styles.sessionSetRow}>
+                                            <Text style={styles.sessionSetNumber}>
+                                              #{st.set_number || stI + 1}
+                                            </Text>
+                                            <Text style={styles.sessionSetReps}>
+                                              {st.reps} reps
+                                            </Text>
+                                            <Text style={styles.sessionSetWeight}>
+                                              {setWeightDisplay} {unit.toUpperCase()}
+                                            </Text>
+                                            {st.rpe ? (
+                                              <Text style={styles.sessionSetRpe}>
+                                                RPE {st.rpe}
+                                              </Text>
+                                            ) : null}
+                                            <View style={styles.sessionSetStatus}>
+                                              {st.is_completed ? (
+                                                <CheckCircle2 size={13} color="#10b981" />
+                                              ) : (
+                                                <Text style={styles.sessionSetPendingText}>-</Text>
+                                              )}
+                                            </View>
+                                          </View>
+                                        );
+                                      })}
+                                    </View>
+                                  </View>
+                                );
+                              })}
+                            </View>
+                          ) : (
+                            <Text style={styles.noDetailsText}>
+                              {language === 'en'
+                                ? 'No individual set logs found for this session.'
+                                : 'No se encontraron series individuales registradas para esta sesión.'}
+                            </Text>
+                          )}
+                        </View>
+                      )}
                     </View>
                   </View>
                 );
@@ -1226,5 +1444,129 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#64748b',
     fontWeight: '600',
+  },
+  timelineExpandBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 'auto',
+    backgroundColor: '#0f172a',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  timelineExpandBtnText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#94a3b8',
+  },
+  expandedSessionBox: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#1e293b',
+  },
+  detailsLoadingBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    gap: 8,
+  },
+  detailsLoadingText: {
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  sessionExercisesList: {
+    gap: 8,
+  },
+  sessionExerciseCard: {
+    backgroundColor: '#090d16',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#1e293b',
+    padding: 8,
+  },
+  sessionExerciseHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  sessionExerciseName: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+  sessionExerciseMuscle: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#38bdf8',
+    textTransform: 'uppercase',
+  },
+  sessionExerciseCountBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  sessionExerciseCountText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#34d399',
+  },
+  sessionSetsList: {
+    gap: 4,
+  },
+  sessionSetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    backgroundColor: '#020617',
+    borderRadius: 4,
+  },
+  sessionSetNumber: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#64748b',
+    width: 24,
+  },
+  sessionSetReps: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#34d399',
+    width: 60,
+  },
+  sessionSetWeight: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#ffffff',
+    flex: 1,
+  },
+  sessionSetRpe: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#94a3b8',
+    marginRight: 8,
+  },
+  sessionSetStatus: {
+    width: 18,
+    alignItems: 'center',
+  },
+  sessionSetPendingText: {
+    fontSize: 10,
+    color: '#475569',
+  },
+  noDetailsText: {
+    fontSize: 11,
+    color: '#64748b',
+    textAlign: 'center',
+    paddingVertical: 8,
+    fontStyle: 'italic',
   },
 });

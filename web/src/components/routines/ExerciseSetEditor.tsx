@@ -5,6 +5,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { LBS_PER_KG, KG_PER_LB } from '@/lib/utils/units';
 
 export interface SetDraft {
+  id?: string;
   set_number: number;
   target_reps: number;
   target_weight_kg: number;

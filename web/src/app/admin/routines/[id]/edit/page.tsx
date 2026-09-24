@@ -28,6 +28,7 @@ import Link from 'next/link';
 import { STANDARD_MUSCLE_GROUPS, StandardMuscleGroup } from '@/lib/constants/muscleGroups';
 
 interface DraftExercise {
+  id?: string;
   exercise_id: string;
   custom_name: string;
   notes: string;
@@ -40,6 +41,7 @@ interface DraftExercise {
 }
 
 interface DraftDay {
+  id?: string;
   name: string;
   muscle_group: StandardMuscleGroup;
   day_number: number;
@@ -163,6 +165,7 @@ export default function EditRoutinePage() {
         }
 
         return {
+          id: d.id,
           name: d.name,
           muscle_group: detectedMuscle,
           day_number: d.day_number,
@@ -192,6 +195,7 @@ export default function EditRoutinePage() {
               : (exInfo?.gif_url ? [exInfo.gif_url] : []);
 
             return {
+              id: rx.id,
               exercise_id: rx.exercise_id,
               custom_name: customName,
               muscle_group: exInfo?.muscle_group || 'General',
@@ -204,6 +208,7 @@ export default function EditRoutinePage() {
                 const kg = s.target_weight_kg || 0;
                 const lbs = Math.round(kg * LBS_PER_KG);
                 return {
+                  id: s.id,
                   set_number: s.set_number,
                   target_reps: s.target_reps,
                   target_weight_kg: kg,
@@ -530,75 +535,147 @@ export default function EditRoutinePage() {
     setErrorMsg(null);
 
     try {
-      const primaryMuscleGroup = days[0]?.muscle_group || null;
+      // 1. Actualizar metadatos de la rutina (sin 'muscle_group' ya que no pertenece a la tabla routines)
       const { error: routineUpdateErr } = await supabase
         .from('routines')
         .update({
           title: title.trim(),
           description: description.trim() || null,
           is_template: isTemplate,
-          muscle_group: primaryMuscleGroup,
+          updated_at: new Date().toISOString(),
         })
         .eq('id', routineId);
 
       if (routineUpdateErr) throw routineUpdateErr;
 
-      // Limpiar días anteriores y re-insertar
-      await supabase.from('routine_days').delete().eq('routine_id', routineId);
+      // 2. Cargar días existentes de la rutina para actualizar en su lugar y preservar IDs (clave para no romper historial de sesiones)
+      const { data: existingDays } = await supabase
+        .from('routine_days')
+        .select('id')
+        .eq('routine_id', routineId);
+
+      const existingDayIds = new Set((existingDays || []).map((d) => d.id));
+      const keptDayIds = new Set<string>();
 
       for (const [dayIdx, day] of days.entries()) {
         const dayPayload: any = {
           routine_id: routineId,
           name: day.name,
-          muscle_group: day.muscle_group,
           day_number: day.day_number,
           order_index: dayIdx,
         };
 
-        let { data: dayData, error: dayErr } = await supabase
-          .from('routine_days')
-          .insert(dayPayload)
-          .select()
-          .single();
-
-        if (dayErr && dayErr.message?.includes('muscle_group')) {
-          delete dayPayload.muscle_group;
-          const fallbackRes = await supabase.from('routine_days').insert(dayPayload).select().single();
-          dayData = fallbackRes.data;
-          dayErr = fallbackRes.error;
-        }
-
-        if (dayErr) throw dayErr;
-
-        for (const [exIdx, ex] of day.exercises.entries()) {
-          const { data: rxData, error: rxErr } = await supabase
-            .from('routine_exercises')
-            .insert({
-              routine_day_id: dayData.id,
-              exercise_id: ex.exercise_id,
-              order_index: exIdx,
-              notes: ex.notes ? `[${ex.custom_name}] ${ex.notes}` : ex.custom_name,
-            })
+        let dayId = day.id;
+        if (dayId && existingDayIds.has(dayId)) {
+          const { error: dUpdateErr } = await supabase
+            .from('routine_days')
+            .update(dayPayload)
+            .eq('id', dayId);
+          if (dUpdateErr) throw dUpdateErr;
+          keptDayIds.add(dayId);
+        } else {
+          const { data: newDay, error: dInsertErr } = await supabase
+            .from('routine_days')
+            .insert(dayPayload)
             .select()
             .single();
-
-          if (rxErr) throw rxErr;
-
-          const setsPayload = ex.sets.map((s: any) => ({
-            routine_exercise_id: rxData.id,
-            set_number: s.set_number,
-            target_reps: s.target_reps,
-            target_weight_kg: s.target_weight_kg,
-            target_rpe: s.target_rpe,
-            rest_seconds: s.rest_seconds,
-          }));
-
-          const { error: setsErr } = await supabase
-            .from('routine_exercise_sets')
-            .insert(setsPayload);
-
-          if (setsErr) throw setsErr;
+          if (dInsertErr || !newDay) throw dInsertErr || new Error('Error al crear día');
+          dayId = newDay.id;
+          keptDayIds.add(newDay.id);
         }
+
+        // Obtener ejercicios existentes de este día
+        const { data: existingRx } = await supabase
+          .from('routine_exercises')
+          .select('id')
+          .eq('routine_day_id', dayId);
+
+        const existingRxIds = new Set((existingRx || []).map((r) => r.id));
+        const keptRxIds = new Set<string>();
+
+        for (const [exIdx, ex] of day.exercises.entries()) {
+          const rxPayload = {
+            routine_day_id: dayId,
+            exercise_id: ex.exercise_id,
+            order_index: exIdx,
+            notes: ex.notes ? `[${ex.custom_name}] ${ex.notes}` : ex.custom_name,
+          };
+
+          let rxId = ex.id;
+          if (rxId && existingRxIds.has(rxId)) {
+            const { error: rxUpdateErr } = await supabase
+              .from('routine_exercises')
+              .update(rxPayload)
+              .eq('id', rxId);
+            if (rxUpdateErr) throw rxUpdateErr;
+            keptRxIds.add(rxId);
+          } else {
+            const { data: newRx, error: rxInsertErr } = await supabase
+              .from('routine_exercises')
+              .insert(rxPayload)
+              .select()
+              .single();
+            if (rxInsertErr || !newRx) throw rxInsertErr || new Error('Error al registrar ejercicio');
+            rxId = newRx.id;
+            keptRxIds.add(newRx.id);
+          }
+
+          // Obtener series existentes para este ejercicio
+          const { data: existingSets } = await supabase
+            .from('routine_exercise_sets')
+            .select('id')
+            .eq('routine_exercise_id', rxId);
+
+          const existingSetIds = new Set((existingSets || []).map((s) => s.id));
+          const keptSetIds = new Set<string>();
+
+          for (const s of ex.sets) {
+            const setPayload = {
+              routine_exercise_id: rxId,
+              set_number: s.set_number,
+              target_reps: s.target_reps,
+              target_weight_kg: s.target_weight_kg,
+              target_rpe: s.target_rpe,
+              rest_seconds: s.rest_seconds,
+            };
+
+            let sId = s.id;
+            if (sId && existingSetIds.has(sId)) {
+              const { error: sUpdateErr } = await supabase
+                .from('routine_exercise_sets')
+                .update(setPayload)
+                .eq('id', sId);
+              if (sUpdateErr) throw sUpdateErr;
+              keptSetIds.add(sId);
+            } else {
+              const { data: newSet, error: sInsertErr } = await supabase
+                .from('routine_exercise_sets')
+                .insert(setPayload)
+                .select()
+                .single();
+              if (sInsertErr || !newSet) throw sInsertErr || new Error('Error al registrar serie');
+              keptSetIds.add(newSet.id);
+            }
+          }
+
+          // Eliminar series eliminadas en este ejercicio
+          const setsToDelete = Array.from(existingSetIds).filter((id) => !keptSetIds.has(id));
+          if (setsToDelete.length > 0) {
+            await supabase.from('routine_exercise_sets').delete().in('id', setsToDelete);
+          }
+        }
+
+        // Eliminar ejercicios retirados de este día
+        const rxToDelete = Array.from(existingRxIds).filter((id) => !keptRxIds.has(id));
+        if (rxToDelete.length > 0) {
+          await supabase.from('routine_exercises').delete().in('id', rxToDelete);
+        }
+      }
+
+      // Eliminar días eliminados de esta rutina
+      const daysToDelete = Array.from(existingDayIds).filter((id) => !keptDayIds.has(id));
+      if (daysToDelete.length > 0) {
+        await supabase.from('routine_days').delete().in('id', daysToDelete);
       }
 
       if (assignedClientId) {

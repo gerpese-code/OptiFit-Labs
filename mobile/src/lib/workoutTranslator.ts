@@ -257,15 +257,22 @@ export function translateRoutineTitle(title: string, lang: 'es' | 'en' = 'es'): 
  */
 export function translateDayName(name: string, lang: 'es' | 'en' = 'es'): string {
   if (!name) return '';
-  if (lang === 'es') return name;
+  let cleanName = name;
+  if (typeof name === 'string' && name.trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(name);
+      cleanName = parsed.dayName || parsed.title || name;
+    } catch (_) {}
+  }
+  if (lang === 'es') return cleanName;
 
-  const key = normalizeKey(name);
+  const key = normalizeKey(cleanName);
   if (DAY_DICTIONARY[key]) {
     return DAY_DICTIONARY[key].en;
   }
 
   // Traducción regex sistemática: "Día X" -> "Day X"
-  let translated = name.replace(/d[ií]a\s*(\d+)/gi, 'Day $1');
+  let translated = cleanName.replace(/d[ií]a\s*(\d+)/gi, 'Day $1');
 
   // Traducir subtítulo del día
   translated = translated

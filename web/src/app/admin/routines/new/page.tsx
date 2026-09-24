@@ -427,8 +427,7 @@ function NewRoutineContent() {
     setErrorMsg(null);
 
     try {
-      // 1. Insertar rutina
-      const primaryMuscleGroup = days[0]?.muscle_group || null;
+      // 1. Insertar rutina (sin muscle_group ya que no pertenece a la tabla routines)
       const { data: routineData, error: routineErr } = await supabase
         .from('routines')
         .insert({
@@ -437,7 +436,6 @@ function NewRoutineContent() {
           is_template: clientId ? false : isTemplate,
           is_active: true,
           client_id: clientId || null,
-          muscle_group: primaryMuscleGroup,
         })
         .select()
         .single();

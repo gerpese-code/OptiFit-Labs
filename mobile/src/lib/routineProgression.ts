@@ -76,10 +76,10 @@ export async function fetchLastCompletedSessionProgression(
   try {
     const { data: lastSession } = await supabaseClient
       .from('workout_sessions')
-      .select('id, notes, completed_at, status')
+      .select('id, notes, completed_at, status, created_at')
       .eq('client_id', userId)
       .eq('routine_day_id', dayId)
-      .order('completed_at', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
@@ -95,7 +95,7 @@ export async function fetchLastCompletedSessionProgression(
               overrides[ex.exercise_id] = {
                 exerciseId: ex.exercise_id,
                 exerciseName: ex.name,
-                lastUpdated: lastSession.completed_at || new Date().toISOString(),
+                lastUpdated: lastSession.completed_at || lastSession.created_at || new Date().toISOString(),
                 sets: ex.sets.map((s: any, idx: number) => ({
                   routine_exercise_set_id: s.routine_exercise_set_id || null,
                   set_number: s.set_number || idx + 1,
@@ -112,6 +112,67 @@ export async function fetchLastCompletedSessionProgression(
         }
       } catch (e) {
         // Fallback
+      }
+    }
+
+    // Respaldo robusto: si notes no contenía el array JSON de exercises, consultar workout_log_sets
+    const { data: logSets } = await supabaseClient
+      .from('workout_log_sets')
+      .select('id, routine_exercise_set_id, set_number, reps_completed, weight_kg, rpe, is_completed')
+      .eq('session_id', lastSession.id)
+      .order('set_number', { ascending: true });
+
+    if (logSets && logSets.length > 0) {
+      const setIds = logSets.map((s: any) => s.routine_exercise_set_id).filter(Boolean);
+      const setExerciseMap: Record<string, { exerciseId: string; name: string }> = {};
+
+      if (setIds.length > 0) {
+        const { data: rxSets } = await supabaseClient
+          .from('routine_exercise_sets')
+          .select('id, routine_exercises ( id, exercise_id, exercise:exercise_id ( id, name ) )')
+          .in('id', setIds);
+
+        (rxSets || []).forEach((item: any) => {
+          const ex = item.routine_exercises?.exercise;
+          const exId = item.routine_exercises?.exercise_id;
+          if (exId) {
+            setExerciseMap[item.id] = {
+              exerciseId: exId,
+              name: ex?.name || 'Ejercicio',
+            };
+          }
+        });
+      }
+
+      const overrides: DayProgressionOverrides = {};
+      logSets.forEach((ls: any) => {
+        const matched = ls.routine_exercise_set_id ? setExerciseMap[ls.routine_exercise_set_id] : null;
+        const exId = matched?.exerciseId;
+        if (!exId) return;
+        const exName = matched?.name || 'Ejercicio';
+
+        if (!overrides[exId]) {
+          overrides[exId] = {
+            exerciseId: exId,
+            exerciseName: exName,
+            lastUpdated: lastSession.completed_at || lastSession.created_at || new Date().toISOString(),
+            sets: [],
+          };
+        }
+
+        overrides[exId].sets.push({
+          routine_exercise_set_id: ls.routine_exercise_set_id || null,
+          set_number: ls.set_number,
+          target_reps: ls.reps_completed || 10,
+          target_weight_kg: Math.round(ls.weight_kg || 0),
+          target_rpe: ls.rpe || null,
+          rest_seconds: 90,
+          is_extra: false,
+        });
+      });
+
+      if (Object.keys(overrides).length > 0) {
+        return overrides;
       }
     }
 
