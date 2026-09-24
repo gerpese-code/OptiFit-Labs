@@ -78,6 +78,24 @@ export default function ClientDetailPage() {
   const [isRoutineModalOpen, setIsRoutineModalOpen] = useState(false);
   const [clientCode, setClientCode] = useState('');
 
+  const [exerciseDetailsMap, setExerciseDetailsMap] = useState<
+    Record<string, { name: string; muscleGroup: string; imgUrl: string | null }>
+  >({});
+  const [sessionLogSets, setSessionLogSets] = useState<Record<string, WorkoutLogSet[]>>({});
+  const [expandedSessionIds, setExpandedSessionIds] = useState<Set<string>>(new Set());
+
+  const toggleExpandSession = (sessionId: string) => {
+    setExpandedSessionIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(sessionId)) {
+        next.delete(sessionId);
+      } else {
+        next.add(sessionId);
+      }
+      return next;
+    });
+  };
+
   const handleDeleteClient = async () => {
     if (!client) return;
     setDeletingClient(true);
@@ -179,6 +197,22 @@ export default function ClientDetailPage() {
         const activeOne = routinesList.find((r: any) => r.is_active) || (routinesList.length > 0 ? routinesList[0] : null);
         setActiveRoutine(activeOne);
 
+        // Mapa de detalles de ejercicio por routine_exercise_set_id
+        const exMap: Record<string, { name: string; muscleGroup: string; imgUrl: string | null }> = {};
+        routinesList.forEach((r: any) => {
+          r.routine_days?.forEach((d: any) => {
+            d.routine_exercises?.forEach((rx: any) => {
+              const name = rx.exercise?.name || rx.custom_name || 'Ejercicio';
+              const muscleGroup = rx.exercise?.muscle_group || 'General';
+              const imgUrl = rx.exercise?.image_urls?.[0] || rx.exercise?.gif_url || null;
+              rx.routine_exercise_sets?.forEach((st: any) => {
+                exMap[st.id] = { name, muscleGroup, imgUrl };
+              });
+            });
+          });
+        });
+        setExerciseDetailsMap(exMap);
+
         // 2. Cargar sesiones de entrenamiento
         const { data: sessionsData } = await supabase
           .from('workout_sessions')
@@ -189,7 +223,7 @@ export default function ClientDetailPage() {
         const loadedSessions = (sessionsData as WorkoutSession[]) || [];
         setSessions(loadedSessions);
 
-        // 3. Cargar series registradas para tonelaje y 1RM
+        // 3. Cargar series registradas para tonelaje, 1RM y desglose detallado
         if (loadedSessions.length > 0) {
           const sessionIds = loadedSessions.map((s) => s.id);
 
@@ -201,33 +235,32 @@ export default function ClientDetailPage() {
               set_number,
               reps_completed,
               weight_kg,
+              weight_logged,
+              unit_logged,
               is_completed,
+              rpe,
               created_at,
               routine_exercise_set_id
             `)
             .in('session_id', sessionIds)
-            .eq('is_completed', true)
             .order('created_at', { ascending: true });
 
           const sets = (logsData as WorkoutLogSet[]) || [];
+
+          // Agrupar sets por sesión para visualización en el desglose detallado
+          const setsBySession: Record<string, WorkoutLogSet[]> = {};
+          sets.forEach((st) => {
+            if (!setsBySession[st.session_id]) {
+              setsBySession[st.session_id] = [];
+            }
+            setsBySession[st.session_id].push(st);
+          });
+          setSessionLogSets(setsBySession);
 
           // Agrupar tonelaje por fecha de sesión
           const sessionDateMap: { [id: string]: string } = {};
           loadedSessions.forEach((s) => {
             sessionDateMap[s.id] = s.scheduled_date;
-          });
-
-          // Mapa de nombre de ejercicio por routine_exercise_set_id para mostrar nombre real en el 1RM
-          const exerciseNameBySetId: { [setId: string]: string } = {};
-          routinesList.forEach((r: any) => {
-            r.routine_days?.forEach((d: any) => {
-              d.routine_exercises?.forEach((rx: any) => {
-                const exName = rx.exercise?.name || 'Ejercicio';
-                rx.routine_exercise_sets?.forEach((st: any) => {
-                  exerciseNameBySetId[st.id] = exName;
-                });
-              });
-            });
           });
 
           const tonnageMap: { [date: string]: number } = {};
@@ -239,12 +272,13 @@ export default function ClientDetailPage() {
           }[] = [];
 
           sets.forEach((set) => {
+            if (!set.is_completed) return;
             const date = sessionDateMap[set.session_id] || set.created_at.split('T')[0];
             const load = set.reps_completed * (set.weight_kg || 0);
             tonnageMap[date] = (tonnageMap[date] || 0) + load;
 
             if (set.weight_kg > 0 && set.reps_completed > 0) {
-              const matchedName = (set.routine_exercise_set_id && exerciseNameBySetId[set.routine_exercise_set_id]) || 'Ejercicio';
+              const matchedName = (set.routine_exercise_set_id && exMap[set.routine_exercise_set_id]?.name) || 'Ejercicio';
               oneRMPoints.push({
                 date,
                 weight_kg: set.weight_kg,
@@ -265,6 +299,7 @@ export default function ClientDetailPage() {
           // Si no hay sesiones o han sido reseteadas, vaciar inmediatamente tonelaje y 1RM
           setTonnageHistory([]);
           setOneRMHistory([]);
+          setSessionLogSets({});
         }
       } catch (err) {
         console.error('Error al cargar datos del alumno:', err);
@@ -1013,7 +1048,7 @@ export default function ClientDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Columna Izquierda: Monitoreo en Vivo (Realtime) */}
         <div className="lg:col-span-1 space-y-6">
-          <LiveWorkoutMonitor clientId={client.id} />
+          <LiveWorkoutMonitor clientId={client.id} exerciseMap={exerciseDetailsMap} />
 
           {/* Tarjeta de Resumen Rápido */}
           <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 space-y-3">
@@ -1104,6 +1139,7 @@ export default function ClientDetailPage() {
                   <th className="py-3 px-3">Cumplimiento</th>
                   <th className="py-3 px-3">Volumen</th>
                   <th className="py-3 px-3">Calorías</th>
+                  <th className="py-3 px-3 text-right">Detalle</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800/60">
@@ -1121,45 +1157,271 @@ export default function ClientDetailPage() {
                   const dayTitle = parsed?.dayName || (typeof s.notes === 'string' && !parsed ? s.notes : 'Entrenamiento');
                   const volumeVal = parsed?.volume_kg ? formatWeight(parsed.volume_kg) : '---';
                   const caloriesVal = parsed?.calories_burned ? `${parsed.calories_burned} kcal` : '---';
+                  const isExpanded = expandedSessionIds.has(s.id);
+                  const detailedExercises: any[] = parsed?.exercises || [];
+                  const fallbackSets: WorkoutLogSet[] = sessionLogSets[s.id] || [];
 
                   return (
-                    <tr key={s.id} className="hover:bg-gray-800/40 transition">
-                      <td className="py-3.5 px-3 font-semibold text-white whitespace-nowrap">
-                        {s.scheduled_date}
-                      </td>
-                      <td className="py-3.5 px-3 font-bold text-gray-200">
-                        {dayTitle}
-                      </td>
-                      <td className="py-3.5 px-3 whitespace-nowrap">
-                        <span
-                          className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase border ${
-                            s.status === 'completed'
-                              ? 'bg-emerald-950 text-emerald-400 border-emerald-800/50'
-                              : 'bg-amber-950 text-amber-400 border-amber-800/50'
-                          }`}
-                        >
-                          {s.status === 'completed' ? 'Completado' : 'Parcial'}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-3 font-bold text-white whitespace-nowrap">
-                        {totalMin} min
-                      </td>
-                      <td className="py-3.5 px-3 font-bold text-sky-400 whitespace-nowrap">
-                        {exerciseMin} min
-                      </td>
-                      <td className="py-3.5 px-3 font-bold text-purple-400 whitespace-nowrap">
-                        {restMin} min
-                      </td>
-                      <td className="py-3.5 px-3 font-bold text-emerald-400 whitespace-nowrap">
-                        {s.completion_rate}%
-                      </td>
-                      <td className="py-3.5 px-3 font-mono text-gray-300 whitespace-nowrap">
-                        {volumeVal}
-                      </td>
-                      <td className="py-3.5 px-3 text-amber-400 font-semibold whitespace-nowrap">
-                        {caloriesVal}
-                      </td>
-                    </tr>
+                    <React.Fragment key={s.id}>
+                      <tr className={`hover:bg-gray-800/40 transition ${isExpanded ? 'bg-gray-800/30' : ''}`}>
+                        <td className="py-3.5 px-3 font-semibold text-white whitespace-nowrap">
+                          {s.scheduled_date}
+                        </td>
+                        <td className="py-3.5 px-3 font-bold text-gray-200">
+                          {dayTitle}
+                        </td>
+                        <td className="py-3.5 px-3 whitespace-nowrap">
+                          <span
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase border ${
+                              s.status === 'completed'
+                                ? 'bg-emerald-950 text-emerald-400 border-emerald-800/50'
+                                : 'bg-amber-950 text-amber-400 border-amber-800/50'
+                            }`}
+                          >
+                            {s.status === 'completed' ? 'Completado' : 'Parcial'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-3 font-bold text-white whitespace-nowrap">
+                          {totalMin} min
+                        </td>
+                        <td className="py-3.5 px-3 font-bold text-sky-400 whitespace-nowrap">
+                          {exerciseMin} min
+                        </td>
+                        <td className="py-3.5 px-3 font-bold text-purple-400 whitespace-nowrap">
+                          {restMin} min
+                        </td>
+                        <td className="py-3.5 px-3 font-bold text-emerald-400 whitespace-nowrap">
+                          {s.completion_rate}%
+                        </td>
+                        <td className="py-3.5 px-3 font-mono text-gray-300 whitespace-nowrap">
+                          {volumeVal}
+                        </td>
+                        <td className="py-3.5 px-3 text-amber-400 font-semibold whitespace-nowrap">
+                          {caloriesVal}
+                        </td>
+                        <td className="py-3.5 px-3 text-right whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => toggleExpandSession(s.id)}
+                            className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition ${
+                              isExpanded
+                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-sm'
+                                : 'bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border-gray-700'
+                            }`}
+                            title={isExpanded ? 'Ocultar detalle de series' : 'Ver detalle de series'}
+                          >
+                            <span>{isExpanded ? 'Ocultar' : 'Ver Series'}</span>
+                            {isExpanded ? (
+                              <ChevronUp className="w-3.5 h-3.5 text-emerald-400" />
+                            ) : (
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </td>
+                      </tr>
+
+                      {/* Desglose Expandible de Ejercicios y Series */}
+                      {isExpanded && (
+                        <tr className="bg-gray-950/80 border-b border-gray-800">
+                          <td colSpan={10} className="p-4 sm:p-6">
+                            <div className="space-y-4 max-w-5xl">
+                              <div className="flex items-center justify-between pb-3 border-b border-gray-800/80 flex-wrap gap-2">
+                                <div className="flex items-center space-x-2">
+                                  <div className="p-1.5 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400">
+                                    <Dumbbell className="w-4 h-4" />
+                                  </div>
+                                  <div>
+                                    <h4 className="text-xs font-black uppercase tracking-wider text-white">
+                                      Desglose de Ejercicios y Series Realizadas
+                                    </h4>
+                                    <p className="text-[11px] text-gray-400">
+                                      Registro de pesos, repeticiones y estado de cada serie completada por el alumno.
+                                    </p>
+                                  </div>
+                                </div>
+                                <span className="text-[11px] font-mono font-bold text-gray-400 bg-gray-900 px-2.5 py-1 rounded-lg border border-gray-800">
+                                  Sesión ID: {s.id.slice(0, 8)}...
+                                </span>
+                              </div>
+
+                              {detailedExercises.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  {detailedExercises.map((ex: any, idx: number) => {
+                                    const completedCount = (ex.sets || []).filter((st: any) => st.is_completed).length;
+                                    const totalCount = ex.sets?.length || 0;
+                                    const allDone = totalCount > 0 && completedCount === totalCount;
+
+                                    return (
+                                      <div
+                                        key={idx}
+                                        className="bg-gray-900/90 border border-gray-800 rounded-xl p-3.5 space-y-3 shadow-md"
+                                      >
+                                        {/* Cabecera del ejercicio */}
+                                        <div className="flex items-center justify-between gap-2">
+                                          <div className="flex items-center space-x-2.5 min-w-0">
+                                            {ex.image_url ? (
+                                              <img
+                                                src={ex.image_url}
+                                                alt={ex.name}
+                                                className="w-10 h-10 rounded-lg object-cover bg-gray-950 border border-gray-800 shrink-0"
+                                              />
+                                            ) : (
+                                              <div className="w-10 h-10 rounded-lg bg-gray-950 border border-gray-800 flex items-center justify-center text-gray-500 shrink-0">
+                                                <Dumbbell className="w-5 h-5" />
+                                              </div>
+                                            )}
+                                            <div className="min-w-0">
+                                              <h5 className="text-xs font-black text-white truncate">
+                                                {ex.name}
+                                              </h5>
+                                              {ex.muscle_group && (
+                                                <span className="inline-block text-[10px] text-sky-400 font-bold uppercase tracking-wider">
+                                                  {ex.muscle_group}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          <div className="shrink-0 text-right">
+                                            {allDone ? (
+                                              <span className="inline-flex items-center text-[10px] font-bold text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded-md border border-emerald-800/40">
+                                                <CheckCircle2 className="w-3 h-3 mr-1" />
+                                                {completedCount}/{totalCount}
+                                              </span>
+                                            ) : (
+                                              <span className="inline-flex items-center text-[10px] font-bold text-amber-400 bg-amber-950/80 px-2 py-0.5 rounded-md border border-amber-800/40">
+                                                {completedCount}/{totalCount} completadas
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+
+                                        {/* Tabla de series */}
+                                        <div className="overflow-x-auto">
+                                          <table className="w-full text-[11px] text-left">
+                                            <thead>
+                                              <tr className="border-b border-gray-800/80 text-[10px] text-gray-400 font-bold uppercase">
+                                                <th className="py-1.5 px-2">Serie</th>
+                                                <th className="py-1.5 px-2">Reps</th>
+                                                <th className="py-1.5 px-2">Peso</th>
+                                                <th className="py-1.5 px-2">RPE</th>
+                                                <th className="py-1.5 px-2 text-right">Estado</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-800/40 font-mono">
+                                              {(ex.sets || []).map((setObj: any, sIdx: number) => {
+                                                const formattedW = formatWeight(setObj.weight_kg);
+                                                return (
+                                                  <tr
+                                                    key={sIdx}
+                                                    className={
+                                                      setObj.is_completed
+                                                        ? 'bg-emerald-950/20 text-gray-200'
+                                                        : 'text-gray-400'
+                                                    }
+                                                  >
+                                                    <td className="py-1.5 px-2 font-bold text-white">
+                                                      #{setObj.set_number || sIdx + 1}
+                                                    </td>
+                                                    <td className="py-1.5 px-2 font-bold text-emerald-400">
+                                                      {setObj.reps} reps
+                                                    </td>
+                                                    <td className="py-1.5 px-2 font-bold text-white">
+                                                      {formattedW}
+                                                    </td>
+                                                    <td className="py-1.5 px-2 text-gray-400">
+                                                      {setObj.rpe ? `RPE ${setObj.rpe}` : '---'}
+                                                    </td>
+                                                    <td className="py-1.5 px-2 text-right">
+                                                      {setObj.is_completed ? (
+                                                        <span className="inline-flex items-center text-[10px] font-bold text-emerald-400 bg-emerald-950 px-1.5 py-0.5 rounded border border-emerald-800/50">
+                                                          <CheckCircle2 className="w-2.5 h-2.5 mr-1" />
+                                                          Hecha
+                                                        </span>
+                                                      ) : (
+                                                        <span className="text-[10px] text-gray-500">
+                                                          Pendiente
+                                                        </span>
+                                                      )}
+                                                    </td>
+                                                  </tr>
+                                                );
+                                              })}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : fallbackSets.length > 0 ? (
+                                <div className="space-y-3">
+                                  <p className="text-[11px] text-gray-400">
+                                    Series registradas en la base de datos para esta sesión:
+                                  </p>
+                                  <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto p-3">
+                                    <table className="w-full text-[11px] text-left">
+                                      <thead>
+                                        <tr className="border-b border-gray-800 text-[10px] text-gray-400 font-bold uppercase">
+                                          <th className="py-1.5 px-2">Ejercicio</th>
+                                          <th className="py-1.5 px-2">Serie</th>
+                                          <th className="py-1.5 px-2">Reps</th>
+                                          <th className="py-1.5 px-2">Peso</th>
+                                          <th className="py-1.5 px-2">RPE</th>
+                                          <th className="py-1.5 px-2 text-right">Estado</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-gray-800/40 font-mono">
+                                        {fallbackSets.map((fbSet) => {
+                                          const exDetail = fbSet.routine_exercise_set_id
+                                            ? exerciseDetailsMap[fbSet.routine_exercise_set_id]
+                                            : null;
+                                          return (
+                                            <tr key={fbSet.id} className="text-gray-200">
+                                              <td className="py-1.5 px-2 font-sans font-semibold text-white">
+                                                {exDetail?.name || 'Ejercicio'}
+                                              </td>
+                                              <td className="py-1.5 px-2 text-gray-400">
+                                                #{fbSet.set_number}
+                                              </td>
+                                              <td className="py-1.5 px-2 font-bold text-emerald-400">
+                                                {fbSet.reps_completed} reps
+                                              </td>
+                                              <td className="py-1.5 px-2 font-bold text-white">
+                                                {formatWeight(fbSet.weight_kg)}
+                                              </td>
+                                              <td className="py-1.5 px-2 text-gray-400">
+                                                {fbSet.rpe ? `RPE ${fbSet.rpe}` : '---'}
+                                              </td>
+                                              <td className="py-1.5 px-2 text-right">
+                                                {fbSet.is_completed ? (
+                                                  <span className="inline-flex items-center text-[10px] font-bold text-emerald-400 bg-emerald-950 px-1.5 py-0.5 rounded border border-emerald-800/50">
+                                                    <CheckCircle2 className="w-2.5 h-2.5 mr-1" />
+                                                    Hecha
+                                                  </span>
+                                                ) : (
+                                                  <span className="text-[10px] text-gray-500">
+                                                    Pendiente
+                                                  </span>
+                                                )}
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="py-6 text-center text-gray-500 text-xs border border-dashed border-gray-800/80 rounded-xl">
+                                  No hay series detalladas grabadas para esta sesión histórica.
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>

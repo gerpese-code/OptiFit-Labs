@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Play,
+  Check,
   CheckCircle2,
   Dumbbell,
   Clock,
@@ -78,6 +79,7 @@ import {
   getProgressionOverrides,
   recordSessionProgression,
   clearProgressionOverrides,
+  fetchLastCompletedSessionProgression,
   DayProgressionOverrides,
 } from '@/lib/routineProgression';
 import { supabase } from '@/lib/supabase';
@@ -540,7 +542,13 @@ export default function WorkoutScreen() {
     );
     setOriginalExercises(mapped);
 
-    const overrides = await getProgressionOverrides(user?.id || 'guest', selectedDay.id);
+    let overrides = await getProgressionOverrides(user?.id || 'guest', selectedDay.id);
+    if ((!overrides || Object.keys(overrides).length === 0) && user?.id) {
+      const dbOverrides = await fetchLastCompletedSessionProgression(user.id, selectedDay.id, supabase);
+      if (dbOverrides && Object.keys(dbOverrides).length > 0) {
+        overrides = dbOverrides;
+      }
+    }
     setProgressionOverrides(overrides);
 
     const merged: WorkingExerciseItem[] = mapped.map((rx) => {
@@ -551,16 +559,19 @@ export default function WorkoutScreen() {
       }
       return {
         ...rx,
-        sets: ovr.sets.map((os, sIdx) => ({
-          id: `prog-${exId}-${os.set_number}-${sIdx}`,
-          routine_exercise_set_id: null,
-          set_number: os.set_number,
-          target_reps: os.target_reps,
-          target_weight_kg: os.target_weight_kg,
-          target_rpe: os.target_rpe,
-          rest_seconds: os.rest_seconds || 90,
-          is_extra: os.is_extra || false,
-        })),
+        sets: ovr.sets.map((os, sIdx) => {
+          const originalSet = rx.sets[sIdx];
+          return {
+            id: `prog-${exId}-${os.set_number}-${sIdx}`,
+            routine_exercise_set_id: os.routine_exercise_set_id || originalSet?.routine_exercise_set_id || null,
+            set_number: os.set_number,
+            target_reps: os.target_reps,
+            target_weight_kg: os.target_weight_kg,
+            target_rpe: os.target_rpe,
+            rest_seconds: os.rest_seconds || 90,
+            is_extra: os.is_extra || false,
+          };
+        }),
       };
     });
 
@@ -653,40 +664,37 @@ export default function WorkoutScreen() {
         } catch (e) {}
       }
 
-      // Restaurar sesión activa y series completadas registradas hoy si la app se cerró o se minimizó
+      // Restaurar sesión activa y series completadas si la app se cerró o se minimizó
       const todayDateStr = new Date().toISOString().split('T')[0];
       const savedDate = await AsyncStorage.getItem('@fitnesspro_active_session_date');
-      let savedSessionStr: string | null = null;
-      if (savedDate === todayDateStr) {
-        const savedSets = await AsyncStorage.getItem('@fitnesspro_completed_sets');
-        if (savedSets) {
-          try {
-            setCompletedSets(JSON.parse(savedSets));
-          } catch (e) {}
+      let savedSessionStr: string | null = await AsyncStorage.getItem('@fitnesspro_active_session');
+      const savedSets = await AsyncStorage.getItem('@fitnesspro_completed_sets');
+      if (savedSets) {
+        try {
+          setCompletedSets(JSON.parse(savedSets));
+        } catch (e) {}
+      }
+      if (savedSessionStr) {
+        try {
+          const parsedSession = JSON.parse(savedSessionStr);
+          setActiveSession(parsedSession);
+          setIsSessionActive(true);
+        } catch (e) {}
+      }
+      const savedStartTime = await AsyncStorage.getItem('@fitnesspro_session_start_time');
+      if (savedStartTime) {
+        const st = parseInt(savedStartTime, 10);
+        if (!isNaN(st)) {
+          setSessionStartTime(st);
+          setElapsedSeconds(Math.max(1, Math.floor((Date.now() - st) / 1000)));
         }
-        savedSessionStr = await AsyncStorage.getItem('@fitnesspro_active_session');
-        if (savedSessionStr) {
-          try {
-            const parsedSession = JSON.parse(savedSessionStr);
-            setActiveSession(parsedSession);
-            setIsSessionActive(true);
-          } catch (e) {}
-        }
-        const savedStartTime = await AsyncStorage.getItem('@fitnesspro_session_start_time');
-        if (savedStartTime) {
-          const st = parseInt(savedStartTime, 10);
-          if (!isNaN(st)) {
-            setSessionStartTime(st);
-            setElapsedSeconds(Math.floor((Date.now() - st) / 1000));
-          }
-        }
-        const savedRest = await AsyncStorage.getItem('@fitnesspro_session_rest_seconds');
-        if (savedRest) {
-          const r = parseInt(savedRest, 10);
-          if (!isNaN(r)) {
-            setTotalRestSeconds(r);
-            totalRestSecondsRef.current = r;
-          }
+      }
+      const savedRest = await AsyncStorage.getItem('@fitnesspro_session_rest_seconds');
+      if (savedRest) {
+        const r = parseInt(savedRest, 10);
+        if (!isNaN(r)) {
+          setTotalRestSeconds(r);
+          totalRestSecondsRef.current = r;
         }
       }
 
@@ -849,12 +857,14 @@ export default function WorkoutScreen() {
           }
         });
 
-        // Si había una sesión activa guardada hoy, restaurar ese grupo muscular específico
-        if (savedDate === todayDateStr && savedSessionStr) {
+        // Si había una sesión activa guardada, restaurar ese día de entrenamiento específico
+        const savedDayId = await AsyncStorage.getItem('@fitnesspro_active_day_id');
+        if (savedSessionStr || savedDayId) {
           try {
-            const parsed = JSON.parse(savedSessionStr);
-            if (parsed.routine_day_id) {
-              const matchedDay = loadedDays.find((d) => d.id === parsed.routine_day_id);
+            const parsed = savedSessionStr ? JSON.parse(savedSessionStr) : null;
+            const targetDayId = parsed?.routine_day_id || savedDayId;
+            if (targetDayId) {
+              const matchedDay = loadedDays.find((d) => d.id === targetDayId);
               if (matchedDay) {
                 const matchedR = allActiveRoutines.find((r) => r.id === matchedDay.routine_id);
                 if (matchedR) setActiveRoutine(matchedR);
@@ -1327,6 +1337,9 @@ export default function WorkoutScreen() {
     };
     setCompletedSets(newCompletedSets);
     await AsyncStorage.setItem('@fitnesspro_completed_sets', JSON.stringify(newCompletedSets));
+    if (todayDay?.id) {
+      await AsyncStorage.setItem('@fitnesspro_active_day_id', todayDay.id);
+    }
 
     const sessionIdToUse = currentSession?.id || activeSession?.id || generateUUID();
     await syncLiveSummary(newCompletedSets, cardioActivities, elapsedSeconds, sessionIdToUse);
@@ -1737,12 +1750,37 @@ export default function WorkoutScreen() {
 
     const currentMg = selectedMuscleGroup || todayDay.muscle_group || null;
 
+    const exercisesSummary = workingExercises.map((rx) => {
+      const exInfo = (rx as any).exercise || (rx as any).exercise_info;
+      const loggedSets = rx.sets.map((s) => {
+        const log = completedSets[s.id];
+        return {
+          set_number: s.set_number,
+          routine_exercise_set_id: s.routine_exercise_set_id || null,
+          target_reps: s.target_reps,
+          target_weight_kg: s.target_weight_kg,
+          reps: log?.completed ? log.reps : s.target_reps,
+          weight: log?.completed ? log.weight : Math.round(toDisplayWeight(s.target_weight_kg || 0)),
+          weight_kg: log?.completed ? toStandardKg(log.weight, unit) : s.target_weight_kg || 0,
+          unit: unit,
+          completed: !!log?.completed,
+        };
+      });
+      return {
+        exercise_id: rx.exercise_id || rx.id,
+        name: exInfo?.name || 'Ejercicio',
+        muscle_group: exInfo?.muscle_group || 'General',
+        image_url: exInfo?.image_urls?.[0] || exInfo?.gif_url || null,
+        sets: loggedSets,
+      };
+    });
+
     const finishPayload = {
       session_id: activeSession?.id,
       completed_at: finishDate,
       duration_minutes: totalDurationMin,
       completion_rate: stats.currentRate,
-      status: (stats.currentRate >= 90 ? 'completed' : 'partial') as 'completed' | 'partial',
+      status: 'completed' as const,
       muscle_group: currentMg,
       notes: JSON.stringify({
         dayName: todayDay.name,
@@ -1757,6 +1795,7 @@ export default function WorkoutScreen() {
         strength_calories: stats.strengthKcal,
         cardio_calories: stats.cardioKcal,
         volume_kg: stats.totalVolumeKg,
+        exercises: exercisesSummary,
       }),
     };
 
@@ -1883,6 +1922,7 @@ export default function WorkoutScreen() {
     // Limpiar variables de sesión activa en curso
     await AsyncStorage.removeItem('@fitnesspro_active_session');
     await AsyncStorage.removeItem('@fitnesspro_active_session_date');
+    await AsyncStorage.removeItem('@fitnesspro_active_day_id');
     await AsyncStorage.removeItem('@fitnesspro_completed_sets');
     await AsyncStorage.removeItem('@fitnesspro_session_start_time');
     await AsyncStorage.removeItem('@fitnesspro_session_rest_seconds');
@@ -2594,6 +2634,8 @@ export default function WorkoutScreen() {
             {/* Ejercicios */}
             {workingExercises.map((rx: WorkingExerciseItem, exIdx: number) => {
               const exInfo = rx.exercise;
+              const isExerciseCompleted = rx.sets.length > 0 && rx.sets.every((s) => completedSets[s.id]?.completed);
+              const completedCountForEx = rx.sets.filter((s) => completedSets[s.id]?.completed).length;
 
               return (
                 <View key={rx.id || exIdx} style={styles.exerciseCard}>
@@ -2605,6 +2647,20 @@ export default function WorkoutScreen() {
                           <Text style={styles.exerciseName}>
                             {exIdx + 1}. {translateExerciseName(exInfo?.name || 'Ejercicio', language)}
                           </Text>
+                          {isExerciseCompleted ? (
+                            <View style={styles.completedExerciseBadge}>
+                              <Check size={10} color="#10b981" strokeWidth={3} style={{ marginRight: 3 }} />
+                              <Text style={styles.completedExerciseBadgeText}>
+                                {language === 'en' ? 'DONE' : 'LISTO'}
+                              </Text>
+                            </View>
+                          ) : completedCountForEx > 0 ? (
+                            <View style={styles.progressExerciseBadge}>
+                              <Text style={styles.progressExerciseBadgeText}>
+                                {completedCountForEx}/{rx.sets.length}
+                              </Text>
+                            </View>
+                          ) : null}
                           {(exInfo?.is_custom || exInfo?.created_by === user?.id) && (
                             <View style={styles.customExerciseBadge}>
                               <Sparkles size={10} color="#f59e0b" style={{ marginRight: 3 }} />
@@ -3937,6 +3993,35 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#f59e0b',
     textTransform: 'uppercase',
+  },
+  completedExerciseBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  completedExerciseBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#10b981',
+    textTransform: 'uppercase',
+  },
+  progressExerciseBadge: {
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.4)',
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  progressExerciseBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#38bdf8',
   },
   exerciseHeaderActionsRow: {
     flexDirection: 'row',

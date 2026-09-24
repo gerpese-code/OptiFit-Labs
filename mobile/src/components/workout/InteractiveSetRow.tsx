@@ -80,7 +80,36 @@ export default function InteractiveSetRow({
   const repsDiff = repsNum - set.target_reps;
   const weightDiff = weightNum - targetWeightInUnit;
 
+  const autoSaveTimerRef = React.useRef<any>(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, []);
+
+  const triggerAutoComplete = (reps: number, weight: number) => {
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    if (reps > 0 && weight >= 0 && !isCompleted) {
+      autoSaveTimerRef.current = setTimeout(() => {
+        triggerHaptic('success');
+        onComplete(reps, weight, true);
+      }, 800);
+    }
+  };
+
+  const handleEndEditing = () => {
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    const currentReps = parseInt(actualReps, 10) || 0;
+    const currentWeight = parseInt(actualWeight, 10) || 0;
+    if (currentReps > 0 && currentWeight >= 0 && !isCompleted) {
+      triggerHaptic('success');
+      onComplete(currentReps, currentWeight, true);
+    }
+  };
+
   const handleToggle = () => {
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     const nextCompleted = !isCompleted;
     if (nextCompleted) {
       triggerHaptic('success');
@@ -100,6 +129,8 @@ export default function InteractiveSetRow({
     }
     if (isCompleted) {
       onComplete(newReps, weightNum, true);
+    } else if (newReps > 0) {
+      triggerAutoComplete(newReps, weightNum);
     }
   };
 
@@ -112,6 +143,8 @@ export default function InteractiveSetRow({
     }
     if (isCompleted) {
       onComplete(repsNum, newWeight, true);
+    } else if (repsNum > 0) {
+      triggerAutoComplete(repsNum, newWeight);
     }
   };
 
@@ -185,6 +218,7 @@ export default function InteractiveSetRow({
             keyboardType="number-pad"
             value={actualReps}
             onChangeText={handleRepsChange}
+            onEndEditing={handleEndEditing}
             selectTextOnFocus
           />
         </View>
@@ -198,6 +232,7 @@ export default function InteractiveSetRow({
             keyboardType="number-pad"
             value={actualWeight}
             onChangeText={handleWeightChange}
+            onEndEditing={handleEndEditing}
             selectTextOnFocus
           />
         </View>

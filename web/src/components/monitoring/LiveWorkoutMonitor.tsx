@@ -9,11 +9,13 @@ import { Activity, CheckCircle2, Dumbbell, Radio, Flame } from 'lucide-react';
 interface LiveWorkoutMonitorProps {
   clientId: string;
   initialSession?: WorkoutSession | null;
+  exerciseMap?: Record<string, { name: string; muscleGroup: string; imgUrl: string | null }>;
 }
 
 export default function LiveWorkoutMonitor({
   clientId,
   initialSession = null,
+  exerciseMap,
 }: LiveWorkoutMonitorProps) {
   const supabase = createClient();
   const { formatWeight, unit } = useUnit();
@@ -87,8 +89,9 @@ export default function LiveWorkoutMonitor({
           const newSet = payload.new as WorkoutLogSet;
           if (activeSession && newSet.session_id === activeSession.id) {
             setLiveSets((prev) => [...prev, newSet]);
+            const exName = (newSet.routine_exercise_set_id && exerciseMap?.[newSet.routine_exercise_set_id]?.name) || 'Ejercicio';
             setLastEventMsg(
-              `¡Nueva serie completada! Serie #${newSet.set_number}: ${newSet.reps_completed} reps con ${newSet.weight_logged} ${newSet.unit_logged}`
+              `¡Nueva serie! [${exName}] #${newSet.set_number}: ${newSet.reps_completed} reps @ ${newSet.weight_logged} ${newSet.unit_logged}`
             );
           }
         }
@@ -244,37 +247,47 @@ export default function LiveWorkoutMonitor({
               </p>
             ) : (
               <div className="divide-y divide-gray-800/80 max-h-56 overflow-y-auto pr-1">
-                {liveSets.map((s) => (
-                  <div
-                    key={s.id}
-                    className="py-2.5 flex items-center justify-between text-xs"
-                  >
-                    <div className="flex items-center space-x-2.5">
-                      <span className="w-6 h-6 rounded-lg bg-gray-950 border border-gray-800 flex items-center justify-center font-mono font-bold text-gray-300 text-[11px]">
-                        #{s.set_number}
-                      </span>
-                      <span className="font-semibold text-white">
-                        {s.reps_completed} reps @ {formatWeight(s.weight_kg)}
-                      </span>
-                      {s.rpe && (
-                        <span className="text-[10px] text-gray-400 font-mono bg-gray-950 px-1.5 py-0.5 rounded border border-gray-800">
-                          RPE {s.rpe}
+                {liveSets.map((s) => {
+                  const exDetails = s.routine_exercise_set_id && exerciseMap ? exerciseMap[s.routine_exercise_set_id] : null;
+                  return (
+                    <div
+                      key={s.id}
+                      className="py-2.5 flex items-center justify-between text-xs"
+                    >
+                      <div className="flex items-center space-x-2.5">
+                        <span className="w-6 h-6 rounded-lg bg-gray-950 border border-gray-800 flex items-center justify-center font-mono font-bold text-gray-300 text-[11px]">
+                          #{s.set_number}
                         </span>
-                      )}
-                    </div>
+                        <div>
+                          {exDetails && (
+                            <span className="block text-[11px] font-medium text-emerald-400">
+                              {exDetails.name}
+                            </span>
+                          )}
+                          <span className="font-semibold text-white">
+                            {s.reps_completed} reps @ {formatWeight(s.weight_kg)}
+                          </span>
+                        </div>
+                        {s.rpe && (
+                          <span className="text-[10px] text-gray-400 font-mono bg-gray-950 px-1.5 py-0.5 rounded border border-gray-800">
+                            RPE {s.rpe}
+                          </span>
+                        )}
+                      </div>
 
-                    <div className="flex items-center space-x-1.5">
-                      {s.is_completed ? (
-                        <span className="inline-flex items-center text-[10px] font-bold text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded-md border border-emerald-800/40">
-                          <CheckCircle2 className="w-3 h-3 mr-1" />
-                          Completada
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-gray-500">Pendiente</span>
-                      )}
+                      <div className="flex items-center space-x-1.5">
+                        {s.is_completed ? (
+                          <span className="inline-flex items-center text-[10px] font-bold text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded-md border border-emerald-800/40">
+                            <CheckCircle2 className="w-3 h-3 mr-1" />
+                            Completada
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-gray-500">Pendiente</span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

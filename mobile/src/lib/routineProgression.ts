@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WorkingSetItem } from '@/components/workout/InteractiveSetRow';
 
 export interface ProgressionSetItem {
+  routine_exercise_set_id?: string | null;
   set_number: number;
   target_reps: number;
   target_weight_kg: number;
@@ -63,6 +64,65 @@ export async function saveProgressionOverrides(
 }
 
 /**
+ * Recupera la progresión de la última sesión completada desde la base de datos (Supabase)
+ * como respaldo si el alumno cambió de dispositivo o no tiene datos en caché local.
+ */
+export async function fetchLastCompletedSessionProgression(
+  userId: string,
+  dayId: string,
+  supabaseClient: any
+): Promise<DayProgressionOverrides | null> {
+  if (!userId || !dayId || !supabaseClient) return null;
+  try {
+    const { data: lastSession } = await supabaseClient
+      .from('workout_sessions')
+      .select('id, notes, completed_at, status')
+      .eq('client_id', userId)
+      .eq('routine_day_id', dayId)
+      .order('completed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!lastSession) return null;
+
+    if (lastSession.notes) {
+      try {
+        const parsed = typeof lastSession.notes === 'string' ? JSON.parse(lastSession.notes) : lastSession.notes;
+        if (parsed.exercises && Array.isArray(parsed.exercises) && parsed.exercises.length > 0) {
+          const overrides: DayProgressionOverrides = {};
+          parsed.exercises.forEach((ex: any) => {
+            if (ex.exercise_id && Array.isArray(ex.sets)) {
+              overrides[ex.exercise_id] = {
+                exerciseId: ex.exercise_id,
+                exerciseName: ex.name,
+                lastUpdated: lastSession.completed_at || new Date().toISOString(),
+                sets: ex.sets.map((s: any, idx: number) => ({
+                  routine_exercise_set_id: s.routine_exercise_set_id || null,
+                  set_number: s.set_number || idx + 1,
+                  target_reps: s.reps || 10,
+                  target_weight_kg: Math.round(s.weight_kg ?? (s.weight || 0)),
+                  target_rpe: s.rpe || null,
+                  rest_seconds: s.rest_seconds || 90,
+                  is_extra: s.is_extra || false,
+                })),
+              };
+            }
+          });
+          return overrides;
+        }
+      } catch (e) {
+        // Fallback
+      }
+    }
+
+    return null;
+  } catch (err) {
+    console.warn('Aviso al recuperar progresión de última sesión en Supabase:', err);
+    return null;
+  }
+}
+
+/**
  * Registra la progresión real del alumno al finalizar una sesión para precargarla en la próxima
  */
 export async function recordSessionProgression(
@@ -104,6 +164,7 @@ export async function recordSessionProgression(
         }
 
         return {
+          routine_exercise_set_id: s.routine_exercise_set_id || null,
           set_number: idx + 1,
           target_reps: Math.max(1, finalReps),
           target_weight_kg: Math.max(0, Math.round(finalWeightKg)),
