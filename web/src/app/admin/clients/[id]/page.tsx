@@ -77,6 +77,7 @@ export default function ClientDetailPage() {
   const [expandedRoutineIds, setExpandedRoutineIds] = useState<Set<string>>(new Set());
   const [isRoutineModalOpen, setIsRoutineModalOpen] = useState(false);
   const [clientCode, setClientCode] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   const [exerciseDetailsMap, setExerciseDetailsMap] = useState<
     Record<string, { name: string; muscleGroup: string; imgUrl: string | null }>
@@ -154,13 +155,16 @@ export default function ClientDetailPage() {
       if (profileErr) throw profileErr;
       setClient(profileData as Profile);
 
-      // Cargar código único de alumno desde la API de administración
+      // Cargar código único y avatar de alumno desde la API de administración
       let assignedCode = getClientCode(profileData);
       try {
         const codesRes = await fetch('/api/admin/clients');
         const codesData = await codesRes.json();
         if (codesData?.codes?.[clientId]) {
           assignedCode = codesData.codes[clientId];
+        }
+        if (codesData?.avatars?.[clientId]) {
+          setAvatarUrl(codesData.avatars[clientId]);
         }
       } catch (e) {
         // Fallback al código determinista
@@ -461,31 +465,43 @@ export default function ClientDetailPage() {
         <div className="flex items-center space-x-3">
           <Link
             href="/admin/clients"
-            className="p-2 bg-gray-900 border border-gray-800 rounded-xl text-gray-400 hover:text-white transition"
+            className="p-2 bg-gray-900 border border-gray-800 rounded-xl text-gray-400 hover:text-white transition shrink-0"
           >
             <ArrowLeft className="w-4 h-4" />
           </Link>
-          <div>
-            <div className="flex items-center space-x-3">
-              <h2 className="text-xl font-black text-white flex items-center space-x-2">
-                <User className="w-5 h-5 mr-1 text-emerald-400" />
-                <span>{client.full_name}</span>
-                <span className="px-2 py-0.5 rounded-md bg-gray-800 text-gray-400 font-mono text-xs border border-gray-700">
-                  ID: {client.id.slice(0, 8)}...
-                </span>
-              </h2>
-              {activityInfo && (
-                <span
-                  className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-lg border text-xs font-bold ${activityInfo.badgeClass}`}
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full ${activityInfo.dotColor}`}></span>
-                  <span>{activityInfo.label}</span>
-                </span>
-              )}
+          <div className="flex items-center space-x-3">
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={client.full_name}
+                className="w-11 h-11 rounded-full object-cover border-2 border-emerald-500/40 shadow shrink-0"
+              />
+            ) : (
+              <div className="w-11 h-11 rounded-full bg-emerald-500/10 text-emerald-400 font-black flex items-center justify-center text-base border border-emerald-500/20 shrink-0">
+                {client.full_name.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div>
+              <div className="flex items-center space-x-3">
+                <h2 className="text-xl font-black text-white flex items-center space-x-2">
+                  <span>{client.full_name}</span>
+                  <span className="px-2 py-0.5 rounded-md bg-gray-800 text-gray-400 font-mono text-xs border border-gray-700">
+                    ID: {client.id.slice(0, 8)}...
+                  </span>
+                </h2>
+                {activityInfo && (
+                  <span
+                    className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-lg border text-xs font-bold ${activityInfo.badgeClass}`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${activityInfo.dotColor}`}></span>
+                    <span>{activityInfo.label}</span>
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Expediente integral, monitoreo de sesiones y analítica biométrica.
+              </p>
             </div>
-            <p className="text-xs text-gray-400 mt-0.5">
-              Expediente integral, monitoreo de sesiones y analítica biométrica.
-            </p>
           </div>
         </div>
 

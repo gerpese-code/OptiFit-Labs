@@ -59,6 +59,7 @@ interface EnrichedClientRoutine {
 
 interface EnrichedClient extends Profile {
   email?: string | null;
+  avatarUrl?: string | null;
   activityInfo: ClientActivityInfo;
   latestSession?: WorkoutSession | null;
   assignedRoutineId?: string | null;
@@ -279,15 +280,17 @@ export default function AdminClientsDirectoryPage() {
       if (profErr) throw profErr;
       const profiles: Profile[] = profilesData || [];
 
-      // 1.1 Cargar códigos únicos y correos de alumno desde la API de administración
+      // 1.1 Cargar códigos únicos, correos y avatars de alumno desde la API de administración
       let clientCodesMap: Record<string, string> = {};
       let clientEmailsMap: Record<string, string> = {};
+      let clientAvatarsMap: Record<string, string> = {};
       try {
         const codesRes = await fetch('/api/admin/clients');
         const codesData = await codesRes.json();
         if (codesData?.success) {
           if (codesData.codes) clientCodesMap = codesData.codes;
           if (codesData.emails) clientEmailsMap = codesData.emails;
+          if (codesData.avatars) clientAvatarsMap = codesData.avatars;
         }
       } catch (e) {
         console.warn('Nota consultando códigos/correos de alumno:', e);
@@ -326,10 +329,12 @@ export default function AdminClientsDirectoryPage() {
         const activityInfo = getClientActivityInfo(client, latestSession);
         const code = clientCodesMap[client.id] || getClientCode(client, idx);
         const userEmail = clientEmailsMap[client.id] || null;
+        const avatarUrl = clientAvatarsMap[client.id] || null;
 
         return {
           ...client,
           email: userEmail,
+          avatarUrl,
           activityInfo,
           latestSession,
           assignedRoutineId: primaryRoutine?.id || null,
@@ -713,9 +718,17 @@ export default function AdminClientsDirectoryPage() {
                     <td className="py-4 px-4">
                       <div className="flex items-center space-x-3">
                         <div className="relative">
-                          <div className="w-10 h-10 rounded-full bg-emerald-500/10 text-emerald-400 font-black flex items-center justify-center text-sm border border-emerald-500/20">
-                            {client.full_name.charAt(0).toUpperCase()}
-                          </div>
+                          {client.avatarUrl ? (
+                            <img
+                              src={client.avatarUrl}
+                              alt={client.full_name}
+                              className="w-10 h-10 rounded-full object-cover border border-emerald-500/30"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-emerald-500/10 text-emerald-400 font-black flex items-center justify-center text-sm border border-emerald-500/20">
+                              {client.full_name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
                           {client.activityInfo.isOnline && (
                             <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-gray-900"></span>
                           )}

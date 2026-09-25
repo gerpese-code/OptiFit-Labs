@@ -21,6 +21,7 @@ export async function GET() {
 
     const codes: Record<string, string> = {};
     const emails: Record<string, string> = {};
+    const avatars: Record<string, string> = {};
     (usersData?.users || []).forEach((u) => {
       if (u.id) {
         if (u.user_metadata?.client_code) {
@@ -29,13 +30,16 @@ export async function GET() {
         if (u.email) {
           emails[u.id] = u.email.trim().toLowerCase();
         }
+        if (u.user_metadata?.avatar_url) {
+          avatars[u.id] = String(u.user_metadata.avatar_url);
+        }
       }
     });
 
-    return NextResponse.json({ success: true, codes, emails });
+    return NextResponse.json({ success: true, codes, emails, avatars });
   } catch (err: any) {
     console.error('Error en GET /api/admin/clients:', err);
-    return NextResponse.json({ success: false, codes: {}, emails: {} });
+    return NextResponse.json({ success: false, codes: {}, emails: {}, avatars: {} });
   }
 }
 

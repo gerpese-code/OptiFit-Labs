@@ -10,6 +10,7 @@ import {
   TextInput,
   ActivityIndicator,
   Switch,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -35,12 +36,23 @@ import {
   Calendar,
   Smartphone,
   Dumbbell,
+  Camera,
+  Image as ImageIcon,
+  Music,
+  Disc,
 } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
 import { useUnit } from '@/context/UnitContext';
 import { useLanguage } from '@/context/LanguageContext';
 import GymBackground from '@/components/common/GymBackground';
 import { supabase } from '@/lib/supabase';
+import {
+  getStoredAvatarUrl,
+  pickImageFromGallery,
+  takePhotoWithCamera,
+  removeAvatar,
+} from '@/lib/avatarService';
+import WorkoutMusicModal from '@/components/music/WorkoutMusicModal';
 import {
   getUserPreferences,
   saveUserPreferences,
@@ -106,10 +118,86 @@ export default function ProfileScreen() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // Foto de perfil
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  // Modal de música Spotify
+  const [isMusicModalOpen, setIsMusicModalOpen] = useState(false);
+
   useEffect(() => {
     loadBiometrics();
     loadPreferences();
-  }, []);
+    loadAvatar();
+  }, [user?.id]);
+
+  const loadAvatar = async () => {
+    if (user?.id) {
+      const url = await getStoredAvatarUrl(user.id);
+      if (url) setAvatarUrl(url);
+    }
+  };
+
+  const handlePickFromGallery = async () => {
+    if (!user?.id) return;
+    setIsAvatarModalOpen(false);
+    setUploadingAvatar(true);
+    try {
+      const url = await pickImageFromGallery(user.id);
+      if (url) {
+        setAvatarUrl(url);
+        Alert.alert(
+          language === 'en' ? 'Photo Updated' : 'Foto Actualizada',
+          language === 'en' ? 'Your profile picture has been saved successfully.' : 'Tu foto de perfil ha sido actualizada con éxito.'
+        );
+      }
+    } catch (err: any) {
+      Alert.alert(
+        language === 'en' ? 'Error' : 'Error',
+        err.message || 'No se pudo subir la foto de perfil'
+      );
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    if (!user?.id) return;
+    setIsAvatarModalOpen(false);
+    setUploadingAvatar(true);
+    try {
+      const url = await takePhotoWithCamera(user.id);
+      if (url) {
+        setAvatarUrl(url);
+        Alert.alert(
+          language === 'en' ? 'Photo Updated' : 'Foto Actualizada',
+          language === 'en' ? 'Your profile picture has been saved successfully.' : 'Tu foto de perfil ha sido actualizada con éxito.'
+        );
+      }
+    } catch (err: any) {
+      Alert.alert(
+        language === 'en' ? 'Error' : 'Error',
+        err.message || 'No se pudo tomar la foto con la cámara'
+      );
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    if (!user?.id) return;
+    setIsAvatarModalOpen(false);
+    setUploadingAvatar(true);
+    try {
+      await removeAvatar(user.id);
+      setAvatarUrl(null);
+    } catch (err: any) {
+      console.warn('Error eliminando avatar:', err);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const loadPreferences = async () => {
     try {
@@ -386,9 +474,24 @@ export default function ProfileScreen() {
       >
         {/* Tarjeta de Usuario */}
         <View style={styles.userCard}>
-          <View style={styles.avatarCircle}>
-            <User size={36} color="#10b981" />
-          </View>
+          <TouchableOpacity
+            style={styles.avatarWrapper}
+            onPress={() => setIsAvatarModalOpen(true)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.avatarCircle}>
+              {uploadingAvatar ? (
+                <ActivityIndicator size="small" color="#10b981" />
+              ) : avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+              ) : (
+                <User size={36} color="#10b981" />
+              )}
+            </View>
+            <View style={styles.avatarEditBadge}>
+              <Camera size={13} color="#ffffff" />
+            </View>
+          </TouchableOpacity>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 4 }}>
             <Text style={styles.userName}>{profile?.full_name || 'Alumno OptiFit Labs'}</Text>
           </View>
@@ -793,6 +896,39 @@ export default function ProfileScreen() {
                 thumbColor={preferences.barbellCalcEnabled ? '#ffffff' : '#94a3b8'}
               />
             </View>
+          </View>
+        </View>
+
+        {/* Sección: Música & Spotify para Entrenar */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{language === 'en' ? 'WORKOUT MUSIC & SPOTIFY' : 'MÚSICA & SPOTIFY EN ENTRENAMIENTO'}</Text>
+          <View style={styles.settingCard}>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Disc size={22} color="#1DB954" style={{ marginRight: 12 }} />
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={styles.settingName}>
+                    {language === 'en' ? 'Spotify Integrated Player' : 'Reproductor Integrado Spotify'}
+                  </Text>
+                  <Text style={styles.settingDesc}>
+                    {language === 'en'
+                      ? 'Listen to workout playlists or configure your own Spotify link without leaving the routine.'
+                      : 'Escucha playlists de gimnasio o tu propio enlace de Spotify sin salir de tu rutina ni pausarla.'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.modifyBioBtn, { backgroundColor: '#1DB954', marginTop: 12 }]}
+              onPress={() => setIsMusicModalOpen(true)}
+              activeOpacity={0.8}
+            >
+              <Music size={15} color="#000000" style={{ marginRight: 6 }} />
+              <Text style={[styles.modifyBioBtnText, { color: '#000000', fontWeight: '900' }]}>
+                {language === 'en' ? 'Open Music Player / Playlists' : 'Abrir Reproductor y Playlists'}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -1318,6 +1454,72 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de Música y Spotify */}
+      <WorkoutMusicModal
+        visible={isMusicModalOpen}
+        onClose={() => setIsMusicModalOpen(false)}
+      />
+
+      {/* Modal: Cambiar Foto de Perfil */}
+      <Modal visible={isAvatarModalOpen} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.avatarModalCard}>
+            <Text style={styles.avatarModalTitle}>
+              {language === 'en' ? 'Profile Picture' : 'Foto de Perfil'}
+            </Text>
+            <Text style={styles.avatarModalDesc}>
+              {language === 'en'
+                ? 'Choose a photo from your gallery or take a new one'
+                : 'Selecciona una foto de tu galería o tómala con tu cámara'}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.avatarOptionBtn}
+              onPress={handlePickFromGallery}
+              activeOpacity={0.8}
+            >
+              <ImageIcon size={20} color="#10b981" />
+              <Text style={styles.avatarOptionText}>
+                {language === 'en' ? 'Choose from Gallery' : 'Elegir de la Galería'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.avatarOptionBtn}
+              onPress={handleTakePhoto}
+              activeOpacity={0.8}
+            >
+              <Camera size={20} color="#38bdf8" />
+              <Text style={styles.avatarOptionText}>
+                {language === 'en' ? 'Take Photo with Camera' : 'Tomar Foto con la Cámara'}
+              </Text>
+            </TouchableOpacity>
+
+            {avatarUrl && (
+              <TouchableOpacity
+                style={styles.avatarDeleteBtn}
+                onPress={handleRemovePhoto}
+                activeOpacity={0.8}
+              >
+                <Trash2 size={18} color="#ef4444" />
+                <Text style={styles.avatarDeleteText}>
+                  {language === 'en' ? 'Remove Current Photo' : 'Eliminar Foto Actual'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={styles.avatarCancelBtn}
+              onPress={() => setIsAvatarModalOpen(false)}
+            >
+              <Text style={styles.avatarCancelText}>
+                {language === 'en' ? 'Cancel' : 'Cancelar'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1358,16 +1560,100 @@ const styles = StyleSheet.create({
     padding: 24,
     alignItems: 'center',
   },
+  avatarWrapper: {
+    position: 'relative',
+    marginBottom: 12,
+  },
   avatarCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     backgroundColor: 'rgba(16, 185, 129, 0.15)',
     borderWidth: 1.5,
     borderColor: '#10b981',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 38,
+  },
+  avatarEditBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: '#10b981',
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#051209',
+  },
+  avatarModalCard: {
+    backgroundColor: '#0f172a',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#334155',
+    padding: 20,
+    width: '90%',
+    maxWidth: 380,
+  },
+  avatarModalTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#ffffff',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  avatarModalDesc: {
+    fontSize: 12,
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginBottom: 18,
+  },
+  avatarOptionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1e293b',
+    padding: 14,
+    borderRadius: 14,
+    marginBottom: 10,
+    gap: 12,
+  },
+  avatarOptionText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  avatarDeleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    padding: 14,
+    borderRadius: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    gap: 12,
+  },
+  avatarDeleteText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#ef4444',
+  },
+  avatarCancelBtn: {
+    padding: 12,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  avatarCancelText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#94a3b8',
   },
   userName: {
     fontSize: 18,

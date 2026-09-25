@@ -12,6 +12,7 @@ import {
   RefreshControl,
   Animated,
   BackHandler,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -41,8 +42,11 @@ import {
   MessageCircle,
   Edit3,
   History,
+  User,
+  Disc,
+  Music,
 } from 'lucide-react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useLanguage } from '@/context/LanguageContext';
 import {
   translateExerciseName,
@@ -62,6 +66,9 @@ import WorkoutHistoryModal from '@/components/workout/WorkoutHistoryModal';
 import RoutineSplitCard from '@/components/workout/RoutineSplitCard';
 import MuscleGroupCard from '@/components/workout/MuscleGroupCard';
 import GymBackground from '@/components/common/GymBackground';
+import WorkoutMusicModal from '@/components/music/WorkoutMusicModal';
+import WorkoutMusicWidget from '@/components/music/WorkoutMusicWidget';
+import { getStoredAvatarUrl } from '@/lib/avatarService';
 import {
   STANDARD_MUSCLE_GROUPS,
   PAIRED_MUSCLE_GROUP_ORDER,
@@ -122,9 +129,13 @@ interface WorkingExerciseItem {
 }
 
 export default function WorkoutScreen() {
+  const router = useRouter();
   const { user, profile } = useAuth();
   const { unit, setUnit, toggleUnit, toStandardKg, toDisplayWeight } = useUnit();
   const { t, language, setLanguage } = useLanguage();
+
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [showMusicModal, setShowMusicModal] = useState<boolean>(false);
 
   const [originalExercises, setOriginalExercises] = useState<WorkingExerciseItem[]>([]);
   const [progressionOverrides, setProgressionOverrides] = useState<DayProgressionOverrides>({});
@@ -236,11 +247,16 @@ export default function WorkoutScreen() {
   const [historyExName, setHistoryExName] = useState<string>('');
   const [historyMuscleGroup, setHistoryMuscleGroup] = useState<string>('');
 
-  // Cargar y refrescar preferencias cuando la pantalla se enfoca
+  // Cargar y refrescar preferencias y avatar cuando la pantalla se enfoca
   useFocusEffect(
     React.useCallback(() => {
       getUserPreferences().then(setPreferences).catch(() => {});
-    }, [])
+      if (user?.id) {
+        getStoredAvatarUrl(user.id).then((url) => {
+          if (url) setAvatarUrl(url);
+        }).catch(() => {});
+      }
+    }, [user?.id])
   );
 
   // Escuchar estado de red y sincronización en segundo plano
@@ -2307,39 +2323,63 @@ export default function WorkoutScreen() {
       <GymBackground />
       {/* Barra superior con selector de Idioma & Medidas (ESP 🇪🇸 / ENG 🇺🇸) */}
       <View style={styles.topBar}>
-        {/* Fila 1: Saludo y Código de Alumno a la izquierda; Idioma y Unidades a la derecha */}
+        {/* Fila 1: Saludo, Avatar y Código de Alumno a la izquierda; Idioma, Unidades y Música a la derecha */}
         <View style={styles.topBarHeaderRow}>
-          <View style={styles.welcomeSubtitleWrapper}>
-            <Text style={styles.welcomeSubtitle}>
-              {t('home.greeting', 'HOLA')}, {profile?.full_name?.split(' ')[0]?.toUpperCase() || 'ALUMNO'}
-            </Text>
-            {user?.id && (
-              <View style={styles.systemIdBadge}>
-                <Text style={styles.systemIdBadgeText}>
-                  ID: {user.id.slice(0, 8)}...
-                </Text>
-              </View>
-            )}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+            <TouchableOpacity
+              onPress={() => router.push('/profile')}
+              activeOpacity={0.8}
+              style={styles.topBarAvatarCircle}
+            >
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.topBarAvatarImage} />
+              ) : (
+                <User size={18} color="#10b981" />
+              )}
+            </TouchableOpacity>
 
-            {/* Indicador discreto de modo sin conexión / sincronización */}
-            {!syncStatus.isOnline && (
-              <View style={styles.offlineStatusBadge}>
-                <Text style={styles.offlineStatusBadgeText}>📶 Sin conexión</Text>
-              </View>
-            )}
-            {syncStatus.isSyncing && (
-              <View style={styles.syncingStatusBadge}>
-                <Text style={styles.syncingStatusBadgeText}>🔄 Sincronizando</Text>
-              </View>
-            )}
-            {showSyncedToast && (
-              <View style={styles.syncedStatusBadge}>
-                <Text style={styles.syncedStatusBadgeText}>✓ Sincronizado</Text>
-              </View>
-            )}
+            <View style={[styles.welcomeSubtitleWrapper, { flex: 1, minWidth: 0 }]}>
+              <Text style={styles.welcomeSubtitle} numberOfLines={1}>
+                {t('home.greeting', 'HOLA')}, {profile?.full_name?.split(' ')[0]?.toUpperCase() || 'ALUMNO'}
+              </Text>
+              {user?.id && (
+                <View style={styles.systemIdBadge}>
+                  <Text style={styles.systemIdBadgeText}>
+                    ID: {user.id.slice(0, 8)}...
+                  </Text>
+                </View>
+              )}
+
+              {/* Indicador discreto de modo sin conexión / sincronización */}
+              {!syncStatus.isOnline && (
+                <View style={styles.offlineStatusBadge}>
+                  <Text style={styles.offlineStatusBadgeText}>📶 Sin conexión</Text>
+                </View>
+              )}
+              {syncStatus.isSyncing && (
+                <View style={styles.syncingStatusBadge}>
+                  <Text style={styles.syncingStatusBadgeText}>🔄 Sincronizando</Text>
+                </View>
+              )}
+              {showSyncedToast && (
+                <View style={styles.syncedStatusBadge}>
+                  <Text style={styles.syncedStatusBadgeText}>✓ Sincronizado</Text>
+                </View>
+              )}
+            </View>
           </View>
 
           <View style={styles.langSelectorRow}>
+            {/* Botón rápido de Música / Spotify */}
+            <TouchableOpacity
+              style={styles.topBarMusicBtn}
+              onPress={() => setShowMusicModal(true)}
+              activeOpacity={0.8}
+            >
+              <Disc size={13} color="#1DB954" />
+              <Text style={styles.topBarMusicText}>MÚSICA</Text>
+            </TouchableOpacity>
+
             <View style={styles.langPillWrapper}>
               <TouchableOpacity
                 style={[
@@ -2854,6 +2894,14 @@ export default function WorkoutScreen() {
               </View>
             </View>
 
+            {/* Widget de Música en Entrenamiento */}
+            <View style={{ marginBottom: 12 }}>
+              <WorkoutMusicWidget
+                onPress={() => setShowMusicModal(true)}
+                isSessionActive={isSessionActive}
+              />
+            </View>
+
             {/* Ejercicios */}
             {workingExercises.map((rx: WorkingExerciseItem, exIdx: number) => {
               const exInfo = rx.exercise;
@@ -3216,11 +3264,50 @@ export default function WorkoutScreen() {
         muscleGroup={historyMuscleGroup}
         userId={user?.id || ''}
       />
+
+      <WorkoutMusicModal
+        visible={showMusicModal}
+        onClose={() => setShowMusicModal(false)}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  topBarAvatarCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderWidth: 1.5,
+    borderColor: '#10b981',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  topBarAvatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 18,
+  },
+  topBarMusicBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(29, 185, 84, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(29, 185, 84, 0.4)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    marginRight: 6,
+    gap: 4,
+  },
+  topBarMusicText: {
+    fontSize: 9.5,
+    fontWeight: '900',
+    color: '#1DB954',
+    letterSpacing: 0.5,
+  },
   viewOriginalBtn: {
     flexDirection: 'row',
     alignItems: 'center',
