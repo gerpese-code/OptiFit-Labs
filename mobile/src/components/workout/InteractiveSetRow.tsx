@@ -16,7 +16,8 @@ export interface WorkingSetItem {
   is_extra?: boolean;
   is_superset?: boolean;
   superset_count?: number; // 1 a 5
-  superset_reps?: number[]; // ej: [6, 6, 6, 6]
+  superset_reps?: number[]; // ej: [6, 6, 6]
+  superset_weights_kg?: number[]; // ej: [40, 20, 10]
 }
 
 interface InteractiveSetRowProps {
@@ -26,7 +27,7 @@ interface InteractiveSetRowProps {
   onRemoveSet?: () => void;
   onLaunchTimer?: (restSeconds: number) => void;
   onChangeActual?: (reps: number, weight: number) => void;
-  onChangeSuperset?: (isSuperset: boolean, count: number, reps: number[]) => void;
+  onChangeSuperset?: (isSuperset: boolean, count: number, reps: number[], weightsKg?: number[]) => void;
 }
 
 export default function InteractiveSetRow({
@@ -38,7 +39,7 @@ export default function InteractiveSetRow({
   onChangeActual,
   onChangeSuperset,
 }: InteractiveSetRowProps) {
-  const { unit, toDisplayWeight } = useUnit();
+  const { unit, toDisplayWeight, toStandardKg } = useUnit();
   const { t, language } = useLanguage();
 
   // Peso objetivo en la unidad activa
@@ -52,7 +53,7 @@ export default function InteractiveSetRow({
   // Estado de Superserie
   const [isSuperset, setIsSuperset] = useState<boolean>(!!set.is_superset);
   const [supersetCount, setSupersetCount] = useState<number>(
-    set.superset_count || (set.superset_reps ? set.superset_reps.length : 4)
+    set.superset_count || (set.superset_reps ? set.superset_reps.length : 3)
   );
 
   const getInitialRepsArray = (count: number, initialReps?: number[]): string[] => {
@@ -67,10 +68,30 @@ export default function InteractiveSetRow({
     return Array(count).fill(defaultPerSub.toString());
   };
 
+  const getInitialWeightsArray = (count: number, initialWeightsKg?: number[]): string[] => {
+    if (initialWeightsKg && initialWeightsKg.length > 0) {
+      const arr = initialWeightsKg.slice(0, count).map((w) => Math.round(toDisplayWeight(w)).toString());
+      while (arr.length < count) {
+        const last = parseInt(arr[arr.length - 1], 10) || targetWeightInUnit || 20;
+        arr.push(Math.max(0, Math.round(last * 0.7)).toString());
+      }
+      return arr;
+    }
+    const baseW = targetWeightInUnit || 20;
+    return Array.from({ length: count }).map((_, i) => Math.max(0, Math.round(baseW * (1 - i * 0.25))).toString());
+  };
+
   const [continuousReps, setContinuousReps] = useState<string[]>(
     getInitialRepsArray(
-      set.superset_count || (set.superset_reps ? set.superset_reps.length : 4),
+      set.superset_count || (set.superset_reps ? set.superset_reps.length : 3),
       set.superset_reps
+    )
+  );
+
+  const [continuousWeights, setContinuousWeights] = useState<string[]>(
+    getInitialWeightsArray(
+      set.superset_count || (set.superset_reps ? set.superset_reps.length : 3),
+      set.superset_weights_kg
     )
   );
 
@@ -87,7 +108,10 @@ export default function InteractiveSetRow({
     if (set.superset_reps && set.superset_reps.length > 0) {
       setContinuousReps(set.superset_reps.map((r) => r.toString()));
     }
-  }, [set.target_reps, set.target_weight_kg, set.is_superset, set.superset_count, set.superset_reps, unit]);
+    if (set.superset_weights_kg && set.superset_weights_kg.length > 0) {
+      setContinuousWeights(set.superset_weights_kg.map((w) => Math.round(toDisplayWeight(w)).toString()));
+    }
+  }, [set.target_reps, set.target_weight_kg, set.is_superset, set.superset_count, set.superset_reps, set.superset_weights_kg, unit]);
 
   // Autoconversión reactiva si el alumno cambia de KG a LBS o viceversa
   useEffect(() => {
@@ -207,7 +231,7 @@ export default function InteractiveSetRow({
     }
   };
 
-  // Activar o desactivar modalidad de Superserie
+  // Activar o desactivar modalidad de Superserie / Drop-set
   const handleToggleSuperset = () => {
     triggerHaptic('tap');
     const nextIsSuperset = !isSuperset;
@@ -219,14 +243,25 @@ export default function InteractiveSetRow({
       setContinuousReps(repsArray.map((r) => r.toString()));
     }
 
+    let weightsArray = continuousWeights.map((w) => parseInt(w, 10) || 0);
+    if (weightsArray.length !== supersetCount) {
+      const baseW = targetWeightInUnit || 20;
+      weightsArray = Array.from({ length: supersetCount }).map((_, i) => Math.max(0, Math.round(baseW * (1 - i * 0.25))));
+      setContinuousWeights(weightsArray.map((w) => w.toString()));
+    }
+    const weightsKg = weightsArray.map((w) => toStandardKg(w, unit));
+
     if (nextIsSuperset) {
       const sum = repsArray.reduce((acc, curr) => acc + curr, 0);
       setActualReps(sum.toString());
-      if (onChangeActual) onChangeActual(sum, weightNum);
-      if (onChangeSuperset) onChangeSuperset(true, supersetCount, repsArray);
-      if (isCompleted) onComplete(sum, weightNum, true);
+      if (weightsArray[0] > 0) {
+        setActualWeight(weightsArray[0].toString());
+      }
+      if (onChangeActual) onChangeActual(sum, weightsArray[0] || weightNum);
+      if (onChangeSuperset) onChangeSuperset(true, supersetCount, repsArray, weightsKg);
+      if (isCompleted) onComplete(sum, weightsArray[0] || weightNum, true);
     } else {
-      if (onChangeSuperset) onChangeSuperset(false, supersetCount, repsArray);
+      if (onChangeSuperset) onChangeSuperset(false, supersetCount, repsArray, weightsKg);
     }
   };
 
@@ -235,19 +270,34 @@ export default function InteractiveSetRow({
     triggerHaptic('tap');
     setSupersetCount(count);
 
-    const nextArr: string[] = [];
-    for (let i = 0; i < count; i++) {
-      nextArr.push(continuousReps[i] || continuousReps[continuousReps.length - 1] || '6');
-    }
-    setContinuousReps(nextArr);
+    const nextReps: string[] = [];
+    const nextWeights: string[] = [];
+    const baseW = targetWeightInUnit || 20;
 
-    const repsNumbers = nextArr.map((r) => parseInt(r, 10) || 0);
+    for (let i = 0; i < count; i++) {
+      nextReps.push(continuousReps[i] || continuousReps[continuousReps.length - 1] || '6');
+      nextWeights.push(
+        continuousWeights[i] ||
+        Math.max(0, Math.round(baseW * (1 - i * 0.25))).toString()
+      );
+    }
+    setContinuousReps(nextReps);
+    setContinuousWeights(nextWeights);
+
+    const repsNumbers = nextReps.map((r) => parseInt(r, 10) || 0);
     const sum = repsNumbers.reduce((acc, curr) => acc + curr, 0);
     setActualReps(sum.toString());
 
-    if (onChangeActual) onChangeActual(sum, weightNum);
-    if (onChangeSuperset) onChangeSuperset(true, count, repsNumbers);
-    if (isCompleted) onComplete(sum, weightNum, true);
+    const weightsNumbers = nextWeights.map((w) => parseInt(w, 10) || 0);
+    const weightsKg = weightsNumbers.map((w) => toStandardKg(w, unit));
+
+    if (weightsNumbers[0] > 0) {
+      setActualWeight(weightsNumbers[0].toString());
+    }
+
+    if (onChangeActual) onChangeActual(sum, weightsNumbers[0] || weightNum);
+    if (onChangeSuperset) onChangeSuperset(true, count, repsNumbers, weightsKg);
+    if (isCompleted) onComplete(sum, weightsNumbers[0] || weightNum, true);
   };
 
   const handleContinuousFocus = (idx: number) => {
@@ -268,16 +318,20 @@ export default function InteractiveSetRow({
     const repsNumbers = continuousReps.map((r) => parseInt(r, 10) || 6);
     const sum = repsNumbers.reduce((acc, curr) => acc + curr, 0);
     setActualReps(sum.toString());
-    if (onChangeActual) onChangeActual(sum, weightNum);
-    if (onChangeSuperset) onChangeSuperset(true, supersetCount, repsNumbers);
+
+    const weightsNumbers = continuousWeights.map((w) => parseInt(w, 10) || 0);
+    const weightsKg = weightsNumbers.map((w) => toStandardKg(w, unit));
+
+    if (onChangeActual) onChangeActual(sum, weightsNumbers[0] || weightNum);
+    if (onChangeSuperset) onChangeSuperset(true, supersetCount, repsNumbers, weightsKg);
     if (isCompleted) {
-      onComplete(sum, weightNum, true);
+      onComplete(sum, weightsNumbers[0] || weightNum, true);
     } else if (sum > 0) {
-      triggerAutoComplete(sum, weightNum);
+      triggerAutoComplete(sum, weightsNumbers[0] || weightNum);
     }
   };
 
-  // Modificar repeticiones de una micro-serie específica (ej: set 2 de 4)
+  // Modificar repeticiones de una micro-serie específica
   const handleContinuousRepChange = (idx: number, txt: string) => {
     const cleanTxt = txt.replace(/[^0-9]/g, '');
     const updated = [...continuousReps];
@@ -288,12 +342,72 @@ export default function InteractiveSetRow({
     const sum = repsNumbers.reduce((acc, curr) => acc + curr, 0);
     setActualReps(sum.toString());
 
-    if (onChangeActual) onChangeActual(sum, weightNum);
-    if (onChangeSuperset) onChangeSuperset(true, supersetCount, repsNumbers);
+    const weightsNumbers = continuousWeights.map((w) => parseInt(w, 10) || 0);
+    const weightsKg = weightsNumbers.map((w) => toStandardKg(w, unit));
+
+    if (onChangeActual) onChangeActual(sum, weightsNumbers[0] || weightNum);
+    if (onChangeSuperset) onChangeSuperset(true, supersetCount, repsNumbers, weightsKg);
     if (isCompleted) {
-      onComplete(sum, weightNum, true);
+      onComplete(sum, weightsNumbers[0] || weightNum, true);
     } else if (sum > 0) {
-      triggerAutoComplete(sum, weightNum);
+      triggerAutoComplete(sum, weightsNumbers[0] || weightNum);
+    }
+  };
+
+  // Foco y edición de pesos continuos
+  const handleContinuousWeightFocus = (idx: number) => {
+    const updated = [...continuousWeights];
+    updated[idx] = '';
+    setContinuousWeights(updated);
+  };
+
+  const handleContinuousWeightChange = (idx: number, txt: string) => {
+    const cleanTxt = txt.replace(/[^0-9]/g, '');
+    const updated = [...continuousWeights];
+    updated[idx] = cleanTxt;
+    setContinuousWeights(updated);
+
+    const weightsNumbers = updated.map((w) => parseInt(w, 10) || 0);
+    const weightsKg = weightsNumbers.map((w) => toStandardKg(w, unit));
+    const repsNumbers = continuousReps.map((r) => parseInt(r, 10) || 0);
+    const sum = repsNumbers.reduce((acc, curr) => acc + curr, 0);
+
+    if (idx === 0 && weightsNumbers[0] > 0) {
+      setActualWeight(weightsNumbers[0].toString());
+      if (onChangeActual) onChangeActual(sum, weightsNumbers[0]);
+    }
+
+    if (onChangeSuperset) onChangeSuperset(true, supersetCount, repsNumbers, weightsKg);
+    if (isCompleted) {
+      onComplete(sum, weightsNumbers[0] || weightNum, true);
+    } else if (sum > 0) {
+      triggerAutoComplete(sum, weightsNumbers[0] || weightNum);
+    }
+  };
+
+  const handleContinuousWeightEndEditing = (idx: number) => {
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    let val = continuousWeights[idx]?.trim();
+    if (!val) {
+      const fallback = Math.max(0, Math.round(targetWeightInUnit * (1 - idx * 0.25))).toString();
+      val = fallback;
+      const updated = [...continuousWeights];
+      updated[idx] = fallback;
+      setContinuousWeights(updated);
+    }
+    const weightsNumbers = continuousWeights.map((w) => parseInt(w, 10) || 0);
+    const weightsKg = weightsNumbers.map((w) => toStandardKg(w, unit));
+    const repsNumbers = continuousReps.map((r) => parseInt(r, 10) || 6);
+    const sum = repsNumbers.reduce((acc, curr) => acc + curr, 0);
+
+    if (idx === 0) {
+      setActualWeight(weightsNumbers[0].toString());
+      if (onChangeActual) onChangeActual(sum, weightsNumbers[0]);
+    }
+
+    if (onChangeSuperset) onChangeSuperset(true, supersetCount, repsNumbers, weightsKg);
+    if (isCompleted) {
+      onComplete(sum, weightsNumbers[0] || weightNum, true);
     }
   };
 
@@ -450,24 +564,49 @@ export default function InteractiveSetRow({
             </View>
           </View>
 
-          {/* Inputs de repeticiones continuas */}
+          {/* Inputs de repeticiones y pesos continuos (Drop-set / Superserie) */}
           <View style={styles.continuousInputsWrapper}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.continuousInputsRow}>
               {Array.from({ length: supersetCount }).map((_, idx) => (
                 <View key={idx} style={styles.continuousItem}>
-                  <Text style={styles.continuousItemLabel}>S{idx + 1}</Text>
-                  <TextInput
-                    style={styles.continuousInput}
-                    keyboardType="number-pad"
-                    value={continuousReps[idx] || ''}
-                    onFocus={() => handleContinuousFocus(idx)}
-                    onChangeText={(txt) => handleContinuousRepChange(idx, txt)}
-                    onEndEditing={() => handleContinuousEndEditing(idx)}
-                    placeholder="6"
-                    placeholderTextColor="#64748b"
-                  />
+                  <View style={styles.continuousStageBadge}>
+                    <Text style={styles.continuousItemLabel}>#{idx + 1}</Text>
+                  </View>
+
+                  {/* Repeticiones */}
+                  <View style={styles.microInputBox}>
+                    <TextInput
+                      style={styles.continuousInput}
+                      keyboardType="number-pad"
+                      value={continuousReps[idx] || ''}
+                      onFocus={() => handleContinuousFocus(idx)}
+                      onChangeText={(txt) => handleContinuousRepChange(idx, txt)}
+                      onEndEditing={() => handleContinuousEndEditing(idx)}
+                      placeholder="6"
+                      placeholderTextColor="#64748b"
+                    />
+                    <Text style={styles.microUnitLabel}>reps</Text>
+                  </View>
+
+                  <Text style={styles.continuousAtSymbol}>@</Text>
+
+                  {/* Peso de la etapa */}
+                  <View style={styles.microInputBox}>
+                    <TextInput
+                      style={[styles.continuousInput, styles.continuousWeightInput]}
+                      keyboardType="number-pad"
+                      value={continuousWeights[idx] || ''}
+                      onFocus={() => handleContinuousWeightFocus(idx)}
+                      onChangeText={(txt) => handleContinuousWeightChange(idx, txt)}
+                      onEndEditing={() => handleContinuousWeightEndEditing(idx)}
+                      placeholder={Math.max(0, Math.round(targetWeightInUnit * (1 - idx * 0.25))).toString()}
+                      placeholderTextColor="#64748b"
+                    />
+                    <Text style={styles.microUnitLabel}>{unit}</Text>
+                  </View>
+
                   {idx < supersetCount - 1 && (
-                    <Text style={styles.plusSymbol}>+</Text>
+                    <Text style={styles.continuousArrow}>➔</Text>
                   )}
                 </View>
               ))}
@@ -717,30 +856,63 @@ const styles = StyleSheet.create({
   continuousItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#020617',
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.35)',
     gap: 4,
   },
+  continuousStageBadge: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 5,
+  },
   continuousItemLabel: {
-    fontSize: 9.5,
-    fontWeight: '800',
+    fontSize: 10,
+    fontWeight: '900',
     color: '#f59e0b',
+    fontFamily: 'monospace',
+  },
+  microInputBox: {
+    alignItems: 'center',
+  },
+  microUnitLabel: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#64748b',
+    marginTop: 2,
   },
   continuousInput: {
-    width: 48,
-    height: 38,
-    backgroundColor: '#020617',
-    borderRadius: 8,
+    width: 44,
+    height: 36,
+    backgroundColor: '#0b1120',
+    borderRadius: 7,
     borderWidth: 1,
     borderColor: 'rgba(245, 158, 11, 0.4)',
     color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '800',
+    fontSize: 14,
+    fontWeight: '900',
     textAlign: 'center',
   },
-  plusSymbol: {
-    fontSize: 12,
-    fontWeight: '800',
+  continuousWeightInput: {
+    width: 52,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+    color: '#34d399',
+  },
+  continuousAtSymbol: {
+    fontSize: 11,
+    fontWeight: '900',
     color: '#64748b',
-    marginLeft: 2,
+    marginHorizontal: 1,
+  },
+  continuousArrow: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#f59e0b',
+    marginLeft: 4,
   },
   totalBadge: {
     backgroundColor: 'rgba(245, 158, 11, 0.15)',

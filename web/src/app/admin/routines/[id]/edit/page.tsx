@@ -174,9 +174,24 @@ export default function EditRoutinePage() {
               (a: any, b: any) => a.set_number - b.set_number
             );
 
-            // Si las notas guardaban un nombre personalizado entre corchetes [Nombre] notas
+            // Si las notas guardaban un nombre personalizado entre corchetes [Nombre] notas o metadatos de superset
             let customName = '';
-            let parsedNotes = rx.notes || '';
+            let rawNotes = rx.notes || '';
+            let supersetMap: Record<number, any> = {};
+            if (rawNotes.includes('[SUPERSET_CONFIG:')) {
+              try {
+                const matchSS = rawNotes.match(/\[SUPERSET_CONFIG:(.*?)\]/);
+                if (matchSS && matchSS[1]) {
+                  const list = JSON.parse(matchSS[1]);
+                  list.forEach((item: any) => {
+                    supersetMap[item.set_number] = item;
+                  });
+                }
+              } catch (e) {}
+              rawNotes = rawNotes.replace(/\[SUPERSET_CONFIG:.*?\]/g, '').trim();
+            }
+
+            let parsedNotes = rawNotes;
             const match = parsedNotes.match(/^\[(.*?)\]\s*(.*)$/);
             if (match) {
               customName = match[1];
@@ -205,6 +220,7 @@ export default function EditRoutinePage() {
               image_url: imgs[0] || null,
               image_urls: imgs,
               sets: sortedSets.map((s: any) => {
+                const ss = supersetMap[s.set_number];
                 const kg = s.target_weight_kg || 0;
                 const lbs = Math.round(kg * LBS_PER_KG);
                 return {
@@ -215,6 +231,10 @@ export default function EditRoutinePage() {
                   target_weight_lbs: lbs,
                   target_rpe: s.target_rpe || 8,
                   rest_seconds: s.rest_seconds || 90,
+                  is_superset: ss ? !!ss.is_superset : false,
+                  superset_count: ss ? ss.superset_count : undefined,
+                  superset_reps: ss ? ss.superset_reps : undefined,
+                  superset_weights_kg: ss ? ss.superset_weights_kg : undefined,
                 };
               }),
             };
@@ -622,11 +642,33 @@ export default function EditRoutinePage() {
         }
 
         for (const [exIdx, ex] of day.exercises.entries()) {
+          // Extraer metadatos de superset / drop-set para persistir en notes
+          const supersetMeta = (ex.sets || [])
+            .filter((s: any) => s.is_superset)
+            .map((s: any, idx: number) => ({
+              set_number: s.set_number || idx + 1,
+              is_superset: true,
+              superset_count: s.superset_count || (s.superset_reps ? s.superset_reps.length : 3),
+              superset_reps: s.superset_reps || [6, 6, 6],
+              superset_weights_kg: s.superset_weights_kg || [
+                s.target_weight_kg || 40,
+                Math.round((s.target_weight_kg || 40) * 0.75),
+                Math.round((s.target_weight_kg || 40) * 0.5),
+              ],
+            }));
+
+          let cleanNotes = (ex.notes || '').replace(/\[SUPERSET_CONFIG:.*?\]/g, '').trim();
+          let combinedNotes = cleanNotes;
+          if (supersetMeta.length > 0) {
+            const metaStr = `[SUPERSET_CONFIG:${JSON.stringify(supersetMeta)}]`;
+            combinedNotes = combinedNotes ? `${combinedNotes} ${metaStr}` : metaStr;
+          }
+
           const rxPayload = {
             routine_day_id: dayId,
             exercise_id: ex.exercise_id,
             order_index: exIdx,
-            notes: ex.notes ? `[${ex.custom_name}] ${ex.notes}` : ex.custom_name,
+            notes: combinedNotes ? `[${ex.custom_name}] ${combinedNotes}` : ex.custom_name,
           };
 
           // Identificar ejercicio existente: por ex.id, o por coincidencia en existingRxList

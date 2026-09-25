@@ -12,6 +12,7 @@ export interface ProgressionSetItem {
   is_superset?: boolean;
   superset_count?: number;
   superset_reps?: number[];
+  superset_weights_kg?: number[];
 }
 
 export interface ExerciseProgressionOverride {
@@ -47,6 +48,7 @@ export interface SavedDayExerciseItem {
     is_superset?: boolean;
     superset_count?: number;
     superset_reps?: number[];
+    superset_weights_kg?: number[];
   }[];
 }
 
@@ -375,6 +377,7 @@ export async function saveDayWorkoutSnapshot(
         is_superset: !!s.is_superset,
         superset_count: s.superset_count || (s.superset_reps ? s.superset_reps.length : 1),
         superset_reps: s.superset_reps || undefined,
+        superset_weights_kg: s.superset_weights_kg || undefined,
       };
     });
 
@@ -507,6 +510,7 @@ export async function loadDayWorkoutSnapshot(
                   is_superset: !!s.is_superset,
                   superset_count: s.superset_count || (s.superset_reps ? s.superset_reps.length : 1),
                   superset_reps: s.superset_reps || undefined,
+                  superset_weights_kg: s.superset_weights_kg || undefined,
                 })),
               }));
 
@@ -623,6 +627,7 @@ export async function syncRoutineExercisesToSupabase(
           is_superset: true,
           superset_count: s.superset_count || s.superset_reps?.length || 2,
           superset_reps: s.superset_reps || [],
+          superset_weights_kg: s.superset_weights_kg || [],
         }));
 
       let cleanNotes = (wx.notes || '').replace(/\[SUPERSET_CONFIG:.*?\]/g, '').trim();

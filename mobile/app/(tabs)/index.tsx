@@ -545,7 +545,7 @@ export default function WorkoutScreen() {
 
     const mapped: WorkingExerciseItem[] = rawExercises.map(
       (rx: any) => {
-        let supersetMap: Record<number, { is_superset: boolean; superset_count: number; superset_reps: number[] }> = {};
+        let supersetMap: Record<number, { is_superset: boolean; superset_count: number; superset_reps: number[]; superset_weights_kg?: number[] }> = {};
         if (rx.notes && typeof rx.notes === 'string' && rx.notes.includes('[SUPERSET_CONFIG:')) {
           try {
             const match = rx.notes.match(/\[SUPERSET_CONFIG:(.*?)\]/);
@@ -579,6 +579,7 @@ export default function WorkoutScreen() {
                 is_superset: ss ? ss.is_superset : false,
                 superset_count: ss ? ss.superset_count : undefined,
                 superset_reps: ss ? ss.superset_reps : undefined,
+                superset_weights_kg: ss ? ss.superset_weights_kg : undefined,
               };
             }),
         };
@@ -607,6 +608,7 @@ export default function WorkoutScreen() {
           is_superset: !!s.is_superset,
           superset_count: s.superset_count,
           superset_reps: s.superset_reps,
+          superset_weights_kg: s.superset_weights_kg,
         })),
       }));
 
@@ -2018,6 +2020,7 @@ export default function WorkoutScreen() {
           is_superset: !!s.is_superset,
           superset_count: s.superset_count,
           superset_reps: s.superset_reps,
+          superset_weights_kg: s.superset_weights_kg,
         };
       });
       return {
@@ -2053,6 +2056,7 @@ export default function WorkoutScreen() {
           is_superset: !!s.is_superset,
           superset_count: s.superset_count,
           superset_reps: s.superset_reps,
+          superset_weights_kg: s.superset_weights_kg,
         };
       });
 
@@ -3222,12 +3226,18 @@ export default function WorkoutScreen() {
                               }
                             }
                           }}
-                          onChangeSuperset={(isSuperset, count, reps) => {
+                          onChangeSuperset={(isSuperset, count, reps, weightsKg) => {
                             const updated = [...workingExercises];
                             if (updated[exIdx]?.sets[setIdx]) {
                               updated[exIdx].sets[setIdx].is_superset = isSuperset;
                               updated[exIdx].sets[setIdx].superset_count = count;
                               updated[exIdx].sets[setIdx].superset_reps = reps;
+                              if (weightsKg && weightsKg.length > 0) {
+                                updated[exIdx].sets[setIdx].superset_weights_kg = weightsKg;
+                                if (weightsKg[0] > 0) {
+                                  updated[exIdx].sets[setIdx].target_weight_kg = weightsKg[0];
+                                }
+                              }
                               const sum = reps.reduce((a, b) => a + b, 0);
                               if (sum > 0) {
                                 updated[exIdx].sets[setIdx].target_reps = sum;

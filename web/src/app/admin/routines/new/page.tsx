@@ -472,13 +472,35 @@ function NewRoutineContent() {
           // Si el coach modificó el nombre del ejercicio o agregó multimedia específica, actualizar o persistir
           let targetExerciseId = ex.exercise_id;
 
+          // Extraer metadatos de superset / drop-set para persistir en notes
+          const supersetMeta = (ex.sets || [])
+            .filter((s: any) => s.is_superset)
+            .map((s: any, idx: number) => ({
+              set_number: s.set_number || idx + 1,
+              is_superset: true,
+              superset_count: s.superset_count || (s.superset_reps ? s.superset_reps.length : 3),
+              superset_reps: s.superset_reps || [6, 6, 6],
+              superset_weights_kg: s.superset_weights_kg || [
+                s.target_weight_kg || 40,
+                Math.round((s.target_weight_kg || 40) * 0.75),
+                Math.round((s.target_weight_kg || 40) * 0.5),
+              ],
+            }));
+
+          let cleanNotes = (ex.notes || '').replace(/\[SUPERSET_CONFIG:.*?\]/g, '').trim();
+          let combinedNotes = cleanNotes;
+          if (supersetMeta.length > 0) {
+            const metaStr = `[SUPERSET_CONFIG:${JSON.stringify(supersetMeta)}]`;
+            combinedNotes = combinedNotes ? `${combinedNotes} ${metaStr}` : metaStr;
+          }
+
           const { data: routineExData, error: exErr } = await supabase
             .from('routine_exercises')
             .insert({
               routine_day_id: dayData.id,
               exercise_id: targetExerciseId,
               order_index: exIdx,
-              notes: ex.notes ? `[${ex.custom_name}] ${ex.notes}` : ex.custom_name,
+              notes: combinedNotes ? `[${ex.custom_name}] ${combinedNotes}` : ex.custom_name,
             })
             .select()
             .single();
