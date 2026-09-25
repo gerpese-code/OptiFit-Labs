@@ -9,6 +9,9 @@ export interface ProgressionSetItem {
   target_rpe: number | null;
   rest_seconds: number;
   is_extra?: boolean;
+  is_superset?: boolean;
+  superset_count?: number;
+  superset_reps?: number[];
 }
 
 export interface ExerciseProgressionOverride {
@@ -41,7 +44,18 @@ export interface SavedDayExerciseItem {
     target_rpe?: number | null;
     rest_seconds: number;
     is_extra?: boolean;
+    is_superset?: boolean;
+    superset_count?: number;
+    superset_reps?: number[];
   }[];
+}
+
+export interface WorkingExerciseItem {
+  id: string;
+  exercise_id: string;
+  exercise?: any;
+  notes: string | null;
+  sets: WorkingSetItem[];
 }
 
 export interface DayWorkoutSnapshot {
@@ -358,6 +372,9 @@ export async function saveDayWorkoutSnapshot(
         target_rpe: s.target_rpe || null,
         rest_seconds: s.rest_seconds || 90,
         is_extra: s.is_extra || false,
+        is_superset: !!s.is_superset,
+        superset_count: s.superset_count || (s.superset_reps ? s.superset_reps.length : 1),
+        superset_reps: s.superset_reps || undefined,
       };
     });
 
@@ -398,9 +415,9 @@ export async function saveDayWorkoutSnapshot(
 }
 
 /**
- * Carga el snapshot personalizado de la última rutina realizada para un día
- * Si la rutina fue actualizada en la base de datos (por el coach/admin) después de este snapshot,
- * el snapshot se descarta automáticamente para reflejar los nuevos cambios de la rutina.
+ * Carga el snapshot personalizado de la última rutina realizada para un día.
+ * La rutina modificada por el alumno o coach se preserva siempre como su última sesión ejecutada
+ * hasta que el usuario decida explícitamente presionar "Restaurar rutina original".
  */
 export async function loadDayWorkoutSnapshot(
   userId: string,
@@ -416,14 +433,6 @@ export async function loadDayWorkoutSnapshot(
     if (raw) {
       const parsed: DayWorkoutSnapshot = JSON.parse(raw);
       if (parsed && Array.isArray(parsed.exercises) && parsed.exercises.length > 0) {
-        if (routineUpdatedAt && parsed.lastUpdated) {
-          const routineTime = new Date(routineUpdatedAt).getTime();
-          const snapshotTime = new Date(parsed.lastUpdated).getTime();
-          if (routineTime > snapshotTime) {
-            await AsyncStorage.removeItem(key);
-            return null;
-          }
-        }
         return parsed;
       }
     }
@@ -431,7 +440,7 @@ export async function loadDayWorkoutSnapshot(
     console.warn('Error leyendo snapshot local:', e);
   }
 
-  // Respaldo remoto desde Supabase
+  // Respaldo remoto desde Supabase (última sesión completada en workout_sessions)
   if (supabaseClient) {
     try {
       const { data: lastSession } = await supabaseClient
@@ -439,22 +448,13 @@ export async function loadDayWorkoutSnapshot(
         .select('id, notes, completed_at, status, created_at')
         .eq('client_id', userId)
         .eq('routine_day_id', dayId)
-        .eq('status', 'completed')
-        .order('completed_at', { ascending: false })
+        .in('status', ['completed', 'partial'])
+        .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
       if (lastSession?.notes) {
         const sessionTimeStr = lastSession.completed_at || lastSession.created_at;
-        if (routineUpdatedAt && sessionTimeStr) {
-          const routineTime = new Date(routineUpdatedAt).getTime();
-          const sessionTime = new Date(sessionTimeStr).getTime();
-          if (routineTime > sessionTime) {
-            // El admin o coach actualizó la rutina después de la última sesión realizada
-            return null;
-          }
-        }
-
         let parsed: any = null;
         try {
           parsed = typeof lastSession.notes === 'string' ? JSON.parse(lastSession.notes) : lastSession.notes;
@@ -498,6 +498,9 @@ export async function loadDayWorkoutSnapshot(
               target_rpe: s.rpe || null,
               rest_seconds: s.rest_seconds || 90,
               is_extra: s.is_extra || false,
+              is_superset: !!s.is_superset,
+              superset_count: s.superset_count || (s.superset_reps ? s.superset_reps.length : 1),
+              superset_reps: s.superset_reps || undefined,
             })),
           }));
 
@@ -534,4 +537,203 @@ export async function clearDayWorkoutSnapshot(
     console.warn('Error al limpiar snapshot:', e);
   }
 }
+
+/**
+ * Sincroniza workingExercises directamente con routine_exercises y routine_exercise_sets en Supabase
+ * para que las modificaciones de la rutina (ejercicios agregados/eliminados, series, supersets)
+ * queden guardadas permanentemente en la base de datos para este día.
+ */
+export async function syncRoutineExercisesToSupabase(
+  supabaseClient: any,
+  dayId: string,
+  workingExercises: {
+    id: string;
+    exercise_id: string;
+    exercise?: any;
+    notes?: string | null;
+    sets: WorkingSetItem[];
+  }[]
+): Promise<boolean> {
+  if (!supabaseClient || !dayId || !Array.isArray(workingExercises) || workingExercises.length === 0) {
+    return false;
+  }
+
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(dayId)) {
+    return false;
+  }
+
+  try {
+    // 1. Obtener los routine_exercises actuales en Supabase para este día
+    const { data: existingRx, error: rxErr } = await supabaseClient
+      .from('routine_exercises')
+      .select('id, exercise_id, order_index')
+      .eq('routine_day_id', dayId)
+      .order('order_index', { ascending: true });
+
+    if (rxErr) {
+      console.warn('Aviso al consultar routine_exercises en Supabase:', rxErr);
+      return false;
+    }
+
+    const existingList = existingRx || [];
+    const existingIds = new Set(existingList.map((r: any) => r.id));
+    const keptRxIds = new Set<string>();
+
+    // 2. Anti-colisión en order_index para respetar la restricción uq_routine_exercise_order
+    for (const [i, erx] of existingList.entries()) {
+      await supabaseClient
+        .from('routine_exercises')
+        .update({ order_index: -2000 - i })
+        .eq('id', erx.id);
+    }
+
+    // 3. Procesar cada ejercicio de workingExercises
+    for (const [exIdx, wx] of workingExercises.entries()) {
+      const exId = wx.exercise_id || (wx.exercise && wx.exercise.id);
+      if (!exId || !uuidRegex.test(exId)) continue;
+
+      let rxId: string | null = null;
+      if (wx.id && uuidRegex.test(wx.id) && existingIds.has(wx.id)) {
+        rxId = wx.id;
+      }
+
+      // Preparar metadatos de superset en el campo notes
+      const supersetMeta = (wx.sets || [])
+        .filter((s) => s.is_superset)
+        .map((s, idx) => ({
+          set_number: s.set_number || idx + 1,
+          is_superset: true,
+          superset_count: s.superset_count || s.superset_reps?.length || 2,
+          superset_reps: s.superset_reps || [],
+        }));
+
+      let cleanNotes = (wx.notes || '').replace(/\[SUPERSET_CONFIG:.*?\]/g, '').trim();
+      let notesToSave = cleanNotes || null;
+      if (supersetMeta.length > 0) {
+        const metaStr = `[SUPERSET_CONFIG:${JSON.stringify(supersetMeta)}]`;
+        notesToSave = notesToSave ? `${notesToSave} ${metaStr}` : metaStr;
+      }
+
+      const rxPayload = {
+        routine_day_id: dayId,
+        exercise_id: exId,
+        order_index: exIdx,
+        notes: notesToSave,
+      };
+
+      if (rxId) {
+        await supabaseClient
+          .from('routine_exercises')
+          .update(rxPayload)
+          .eq('id', rxId);
+        keptRxIds.add(rxId);
+      } else {
+        const { data: newRx, error: insErr } = await supabaseClient
+          .from('routine_exercises')
+          .insert(rxPayload)
+          .select('id')
+          .single();
+
+        if (insErr || !newRx) {
+          console.warn('Aviso al insertar routine_exercise:', insErr);
+          continue;
+        }
+        rxId = newRx.id;
+      }
+
+      if (!rxId) continue;
+      wx.id = rxId;
+      keptRxIds.add(rxId);
+
+      // 4. Sincronizar routine_exercise_sets
+      const { data: existingSets } = await supabaseClient
+        .from('routine_exercise_sets')
+        .select('id, set_number')
+        .eq('routine_exercise_id', rxId)
+        .order('set_number', { ascending: true });
+
+      const existingSetList = existingSets || [];
+      const existingSetIds = new Set(existingSetList.map((s: any) => s.id));
+      const keptSetIds = new Set<string>();
+
+      // Anti-colisión en set_number
+      for (const [sIdx, es] of existingSetList.entries()) {
+        await supabaseClient
+          .from('routine_exercise_sets')
+          .update({ set_number: -2000 - sIdx })
+          .eq('id', es.id);
+      }
+
+      for (const [sIdx, s] of (wx.sets || []).entries()) {
+        const setNum = sIdx + 1;
+        let setId: string | null = null;
+        if (s.routine_exercise_set_id && uuidRegex.test(s.routine_exercise_set_id) && existingSetIds.has(s.routine_exercise_set_id)) {
+          setId = s.routine_exercise_set_id;
+        } else if (s.id && uuidRegex.test(s.id) && existingSetIds.has(s.id)) {
+          setId = s.id;
+        }
+
+        const setPayload = {
+          routine_exercise_id: rxId,
+          set_number: setNum,
+          target_reps: Math.max(1, s.target_reps || 10),
+          target_weight_kg: Math.max(0, Math.round((s.target_weight_kg || 0) * 10) / 10),
+          target_rpe: s.target_rpe || null,
+          rest_seconds: s.rest_seconds || 90,
+        };
+
+        if (setId) {
+          await supabaseClient
+            .from('routine_exercise_sets')
+            .update(setPayload)
+            .eq('id', setId);
+          keptSetIds.add(setId);
+        } else {
+          const { data: insSet, error: insSetErr } = await supabaseClient
+            .from('routine_exercise_sets')
+            .insert(setPayload)
+            .select('id')
+            .single();
+
+          if (insSet) {
+            s.routine_exercise_set_id = insSet.id;
+            s.id = insSet.id;
+            keptSetIds.add(insSet.id);
+          } else if (insSetErr) {
+            console.warn('Aviso al insertar routine_exercise_set:', insSetErr);
+          }
+        }
+      }
+
+      // Eliminar series sobrantes
+      const setsToDelete = existingSetList
+        .filter((s: any) => !keptSetIds.has(s.id))
+        .map((s: any) => s.id);
+      if (setsToDelete.length > 0) {
+        await supabaseClient
+          .from('routine_exercise_sets')
+          .delete()
+          .in('id', setsToDelete);
+      }
+    }
+
+    // 5. Eliminar ejercicios de routine_exercises que ya no están en workingExercises
+    const rxToDelete = existingList
+      .filter((r: any) => !keptRxIds.has(r.id))
+      .map((r: any) => r.id);
+    if (rxToDelete.length > 0) {
+      await supabaseClient
+        .from('routine_exercises')
+        .delete()
+        .in('id', rxToDelete);
+    }
+
+    return true;
+  } catch (err) {
+    console.warn('Error general en syncRoutineExercisesToSupabase:', err);
+    return false;
+  }
+}
+
 

@@ -92,6 +92,7 @@ import {
   saveDayWorkoutSnapshot,
   loadDayWorkoutSnapshot,
   clearDayWorkoutSnapshot,
+  syncRoutineExercisesToSupabase,
   DayProgressionOverrides,
 } from '@/lib/routineProgression';
 import { supabase } from '@/lib/supabase';
@@ -543,37 +544,50 @@ export default function WorkoutScreen() {
     setTodayDay(tailoredDay);
 
     const mapped: WorkingExerciseItem[] = rawExercises.map(
-      (rx: any) => ({
-        id: rx.id,
-        exercise_id: rx.exercise_id,
-        exercise: rx.exercise,
-        notes: rx.notes,
-        sets: (rx.routine_exercise_sets || [])
-          .sort((a: any, b: any) => a.set_number - b.set_number)
-          .map((s: any) => ({
-            id: s.id,
-            routine_exercise_set_id: s.id,
-            set_number: s.set_number,
-            target_reps: s.target_reps,
-            target_weight_kg: s.target_weight_kg || 0,
-            target_rpe: s.target_rpe,
-            rest_seconds: s.rest_seconds || 90,
-            is_extra: false,
-          })),
-      })
+      (rx: any) => {
+        let supersetMap: Record<number, { is_superset: boolean; superset_count: number; superset_reps: number[] }> = {};
+        if (rx.notes && typeof rx.notes === 'string' && rx.notes.includes('[SUPERSET_CONFIG:')) {
+          try {
+            const match = rx.notes.match(/\[SUPERSET_CONFIG:(.*?)\]/);
+            if (match && match[1]) {
+              const list = JSON.parse(match[1]);
+              list.forEach((item: any) => {
+                supersetMap[item.set_number] = item;
+              });
+            }
+          } catch (e) {}
+        }
+
+        return {
+          id: rx.id,
+          exercise_id: rx.exercise_id,
+          exercise: rx.exercise,
+          notes: rx.notes ? rx.notes.replace(/\[SUPERSET_CONFIG:.*?\]/g, '').trim() : null,
+          sets: (rx.routine_exercise_sets || [])
+            .sort((a: any, b: any) => a.set_number - b.set_number)
+            .map((s: any) => {
+              const ss = supersetMap[s.set_number];
+              return {
+                id: s.id,
+                routine_exercise_set_id: s.id,
+                set_number: s.set_number,
+                target_reps: s.target_reps,
+                target_weight_kg: s.target_weight_kg || 0,
+                target_rpe: s.target_rpe,
+                rest_seconds: s.rest_seconds || 90,
+                is_extra: false,
+                is_superset: ss ? ss.is_superset : false,
+                superset_count: ss ? ss.superset_count : undefined,
+                superset_reps: ss ? ss.superset_reps : undefined,
+              };
+            }),
+        };
+      }
     );
     setOriginalExercises(mapped);
 
     // 1. Cargar snapshot de la última rutina realizada si el alumno personalizó ejercicios/series
-    const dayUpdated = (selectedDay as any).updated_at;
-    const routineUpdated = activeRoutine?.updated_at;
-    let routineUpdatedAt: string | null = null;
-    if (dayUpdated && routineUpdated) {
-      routineUpdatedAt = new Date(dayUpdated).getTime() > new Date(routineUpdated).getTime() ? dayUpdated : routineUpdated;
-    } else {
-      routineUpdatedAt = dayUpdated || routineUpdated || null;
-    }
-    const snapshot = await loadDayWorkoutSnapshot(user?.id || 'guest', selectedDay.id, supabase, routineUpdatedAt);
+    const snapshot = await loadDayWorkoutSnapshot(user?.id || 'guest', selectedDay.id, supabase, null);
 
     if (snapshot && snapshot.exercises && snapshot.exercises.length > 0) {
       const workingFromSnapshot: WorkingExerciseItem[] = snapshot.exercises.map((sx, idx) => ({
@@ -582,7 +596,7 @@ export default function WorkoutScreen() {
         exercise: sx.exercise,
         notes: sx.notes || null,
         sets: (sx.sets || []).map((s, sIdx) => ({
-          id: `work-set-${sx.exercise_id || idx}-${s.set_number || sIdx + 1}-${sIdx}-${Date.now()}`,
+          id: s.id || `work-set-${sx.exercise_id || idx}-${s.set_number || sIdx + 1}-${sIdx}-${Date.now()}`,
           routine_exercise_set_id: s.routine_exercise_set_id || null,
           set_number: s.set_number || sIdx + 1,
           target_reps: s.target_reps,
@@ -590,6 +604,9 @@ export default function WorkoutScreen() {
           target_rpe: s.target_rpe ?? null,
           rest_seconds: s.rest_seconds || 90,
           is_extra: s.is_extra || false,
+          is_superset: !!s.is_superset,
+          superset_count: s.superset_count,
+          superset_reps: s.superset_reps,
         })),
       }));
 
@@ -1520,6 +1537,37 @@ export default function WorkoutScreen() {
     }
   };
 
+  // Cargar una rutina histórica completa en la sesión actual
+  const handleLoadRoutineFromHistory = async (
+    exercises: WorkingExerciseItem[],
+    dayName?: string
+  ) => {
+    if (!exercises || exercises.length === 0) return;
+    setWorkingExercises(exercises);
+    await AsyncStorage.setItem('@fitnesspro_working_exercises', JSON.stringify(exercises));
+    setCompletedSets({});
+    await AsyncStorage.removeItem('@fitnesspro_completed_sets');
+
+    if (todayDay && user?.id) {
+      await saveDayWorkoutSnapshot(
+        user.id,
+        todayDay.id,
+        exercises,
+        {},
+        unit,
+        toStandardKg,
+        dayName || todayDay.name
+      );
+    }
+    triggerHaptic('success');
+    Alert.alert(
+      t('common.success', 'Éxito'),
+      language === 'es'
+        ? `Se ha cargado la rutina histórica "${dayName || 'Seleccionada'}" con sus ejercicios y pesos para la sesión de hoy.`
+        : `Historical routine "${dayName || 'Selected'}" loaded for today's workout.`
+    );
+  };
+
   // Abrir selector para agregar ejercicio
   const handleOpenAddExercise = () => {
     setSubstitutingExerciseIndex(null);
@@ -1592,17 +1640,11 @@ export default function WorkoutScreen() {
         setWorkingExercises(updated);
         await AsyncStorage.setItem('@fitnesspro_working_exercises', JSON.stringify(updated));
 
-        // Actualizar en Supabase si es un ejercicio persistido en routine_exercises
-        if (isValidUUID(currentItem.id)) {
-          try {
-            await supabase.from('routine_exercises').update({ exercise_id: exercise.id }).eq('id', currentItem.id);
-          } catch (e) {
-            console.warn('Error al actualizar routine_exercises en Supabase:', e);
-          }
-        }
-
-        // Guardar snapshot de inmediato con la sustitución
+        // Sincronizar en Supabase y guardar snapshot de inmediato con la sustitución
         if (todayDay && user?.id) {
+          syncRoutineExercisesToSupabase(supabase, todayDay.id, updated).catch((e) => {
+            console.warn('Aviso sincronizando sustitución en Supabase:', e);
+          });
           await saveDayWorkoutSnapshot(
             user.id,
             todayDay.id,
@@ -1659,8 +1701,11 @@ export default function WorkoutScreen() {
       setWorkingExercises(updated);
       await AsyncStorage.setItem('@fitnesspro_working_exercises', JSON.stringify(updated));
 
-      // Guardar snapshot de inmediato con el nuevo ejercicio
+      // Sincronizar en Supabase y guardar snapshot de inmediato con el nuevo ejercicio
       if (todayDay && user?.id) {
+        syncRoutineExercisesToSupabase(supabase, todayDay.id, updated).catch((e) => {
+          console.warn('Aviso sincronizando nuevo ejercicio en Supabase:', e);
+        });
         await saveDayWorkoutSnapshot(
           user.id,
           todayDay.id,
@@ -1702,6 +1747,17 @@ export default function WorkoutScreen() {
             }
             setCompletedSets(cSetsCopy);
             await AsyncStorage.setItem('@fitnesspro_completed_sets', JSON.stringify(cSetsCopy));
+            if (todayDay && user?.id) {
+              await saveDayWorkoutSnapshot(
+                user.id,
+                todayDay.id,
+                updated,
+                cSetsCopy,
+                unit,
+                toStandardKg,
+                todayDay.name
+              );
+            }
             if (isSessionActive && activeSession) {
               syncLiveSummary(cSetsCopy, cardioActivities, elapsedSeconds, activeSession.id);
             }
@@ -1717,9 +1773,9 @@ export default function WorkoutScreen() {
               setWorkingExercises(updated);
               await AsyncStorage.setItem('@fitnesspro_working_exercises', JSON.stringify(updated));
 
-              // 2. Si tiene ID en routine_exercises, borrarlo de Supabase
-              if (targetEx?.id) {
-                await supabase.from('routine_exercises').delete().eq('id', targetEx.id);
+              // 2. Sincronizar en Supabase de forma permanente
+              if (todayDay && user?.id) {
+                await syncRoutineExercisesToSupabase(supabase, todayDay.id, updated);
               }
 
               // 3. Limpiar sets completados en sesión
@@ -1906,6 +1962,9 @@ export default function WorkoutScreen() {
           weight_kg: log?.completed ? toStandardKg(log.weight, unit) : s.target_weight_kg || 0,
           unit: unit,
           completed: !!log?.completed,
+          is_superset: !!s.is_superset,
+          superset_count: s.superset_count,
+          superset_reps: s.superset_reps,
         };
       });
       return {
@@ -1938,6 +1997,9 @@ export default function WorkoutScreen() {
           target_rpe: s.target_rpe || null,
           rest_seconds: s.rest_seconds || 90,
           is_extra: s.is_extra || false,
+          is_superset: !!s.is_superset,
+          superset_count: s.superset_count,
+          superset_reps: s.superset_reps,
         };
       });
 
@@ -1993,18 +2055,13 @@ export default function WorkoutScreen() {
           status: finishPayload.status,
           notes: finishPayload.notes,
           routine_day_id: isValidUUID(todayDay.id) ? todayDay.id : null,
-          muscle_group: currentMg,
         };
         const { error: upErr } = await supabase
           .from('workout_sessions')
           .update(updateData)
           .eq('id', activeSession.id);
         if (upErr) {
-          delete updateData.muscle_group;
-          await supabase
-            .from('workout_sessions')
-            .update(updateData)
-            .eq('id', activeSession.id);
+          console.warn('Aviso al actualizar sesión en Supabase:', upErr.message);
         }
       } catch (err) {
         offlineQueue.enqueue({
@@ -2059,7 +2116,14 @@ export default function WorkoutScreen() {
         );
         setProgressionOverrides(updatedOverrides);
 
-        // Guardar snapshot de la rutina realizada (con ejercicios agregados/eliminados y series/pesos)
+        // Sincronizar permanentemente los ejercicios y series a routine_exercises en Supabase
+        await syncRoutineExercisesToSupabase(
+          supabase,
+          todayDay.id,
+          workingExercises
+        );
+
+        // Guardar snapshot de la rutina realizada (con ejercicios agregados/eliminados, series/pesos y supersets)
         await saveDayWorkoutSnapshot(
           user.id,
           todayDay.id,
@@ -2070,7 +2134,7 @@ export default function WorkoutScreen() {
           todayDay.name
         );
       } catch (progErr) {
-        console.warn('Error al guardar progresión adaptativa:', progErr);
+        console.warn('Error al guardar progresión adaptativa y sincronizar en Supabase:', progErr);
       }
     }
 
@@ -3093,6 +3157,19 @@ export default function WorkoutScreen() {
                               setWorkingExercises(updated);
                             }
                           }}
+                          onChangeSuperset={(isSuperset, count, reps) => {
+                            const updated = [...workingExercises];
+                            if (updated[exIdx]?.sets[setIdx]) {
+                              updated[exIdx].sets[setIdx].is_superset = isSuperset;
+                              updated[exIdx].sets[setIdx].superset_count = count;
+                              updated[exIdx].sets[setIdx].superset_reps = reps;
+                              const sum = reps.reduce((a, b) => a + b, 0);
+                              if (sum > 0) {
+                                updated[exIdx].sets[setIdx].target_reps = sum;
+                              }
+                              setWorkingExercises(updated);
+                            }
+                          }}
                           onRemoveSet={
                             rx.sets.length > 1
                               ? () => handleRemoveSet(exIdx, setIdx)
@@ -3187,6 +3264,7 @@ export default function WorkoutScreen() {
         visible={showWorkoutHistoryModal}
         onClose={() => setShowWorkoutHistoryModal(false)}
         userId={user?.id || ''}
+        onLoadRoutineIntoSession={handleLoadRoutineFromHistory}
       />
 
       <BioHackerPeptidesModal
