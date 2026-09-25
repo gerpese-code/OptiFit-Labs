@@ -316,7 +316,10 @@ export default function ClientDetailPage() {
   const activeDateRange = React.useMemo(() => {
     const today = new Date();
     const formatYMD = (d: Date) => d.toISOString().split('T')[0];
-    const end = formatYMD(today);
+    // Permitir hasta el final del día de mañana para absorber desfases de zona horaria (UTC vs Local)
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const end = formatYMD(tomorrow);
 
     if (timelinePreset === '7d') {
       const s = new Date(today);
@@ -348,7 +351,7 @@ export default function ClientDetailPage() {
       };
     }
     // 'all'
-    return { start: '2020-01-01', end, label: 'Historial Completo' };
+    return { start: '2020-01-01', end: '2099-12-31', label: 'Historial Completo' };
   }, [timelinePreset, customStartDate, customEndDate]);
 
   // Filtrar sesiones, tonelaje y 1RM en memoria reactivamente según el periodo seleccionado
@@ -521,6 +524,16 @@ export default function ClientDetailPage() {
               )}
             </button>
           )}
+
+          {/* Botón Ir a Historial de Entrenamientos */}
+          <a
+            href="#historial-entrenamientos"
+            className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 hover:text-white border border-emerald-800/60 rounded-xl text-xs font-bold transition shadow-sm"
+            title="Ver historial de entrenamientos, series y pesos realizados por este alumno"
+          >
+            <Activity className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Historial ({sessions.length})</span>
+          </a>
 
           {/* Botón Descargar Manual PDF */}
           <a
@@ -1094,7 +1107,7 @@ export default function ClientDetailPage() {
       </div>
 
       {/* Historial Detallado de Sesiones de Entrenamiento Registradas */}
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 shadow-xl space-y-4">
+      <div id="historial-entrenamientos" className="bg-gray-900 border border-gray-800 rounded-3xl p-6 shadow-xl space-y-4 scroll-mt-6">
         <div className="flex items-center justify-between pb-3 border-b border-gray-800">
           <div className="flex items-center space-x-2.5">
             <div className="p-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400">
@@ -1165,7 +1178,12 @@ export default function ClientDetailPage() {
                     <React.Fragment key={s.id}>
                       <tr className={`hover:bg-gray-800/40 transition ${isExpanded ? 'bg-gray-800/30' : ''}`}>
                         <td className="py-3.5 px-3 font-semibold text-white whitespace-nowrap">
-                          {s.scheduled_date}
+                          <div>{s.scheduled_date || (s.created_at ? s.created_at.split('T')[0] : '---')}</div>
+                          {s.completed_at && (
+                            <div className="text-[10px] text-emerald-400/80 font-normal">
+                              {new Date(s.completed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          )}
                         </td>
                         <td className="py-3.5 px-3 font-bold text-gray-200">
                           {dayTitle}
@@ -1247,7 +1265,7 @@ export default function ClientDetailPage() {
                               {detailedExercises.length > 0 ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                   {detailedExercises.map((ex: any, idx: number) => {
-                                    const completedCount = (ex.sets || []).filter((st: any) => st.is_completed).length;
+                                    const completedCount = (ex.sets || []).filter((st: any) => st.is_completed || st.completed).length;
                                     const totalCount = ex.sets?.length || 0;
                                     const allDone = totalCount > 0 && completedCount === totalCount;
 
@@ -1310,12 +1328,13 @@ export default function ClientDetailPage() {
                                             </thead>
                                             <tbody className="divide-y divide-gray-800/40 font-mono">
                                               {(ex.sets || []).map((setObj: any, sIdx: number) => {
-                                                const formattedW = formatWeight(setObj.weight_kg);
+                                                const formattedW = formatWeight(setObj.weight_kg ?? setObj.weight ?? 0);
+                                                const isDone = setObj.is_completed !== undefined ? setObj.is_completed : (setObj.completed !== undefined ? setObj.completed : true);
                                                 return (
                                                   <tr
                                                     key={sIdx}
                                                     className={
-                                                      setObj.is_completed
+                                                      isDone
                                                         ? 'bg-emerald-950/20 text-gray-200'
                                                         : 'text-gray-400'
                                                     }
@@ -1333,7 +1352,7 @@ export default function ClientDetailPage() {
                                                       {setObj.rpe ? `RPE ${setObj.rpe}` : '---'}
                                                     </td>
                                                     <td className="py-1.5 px-2 text-right">
-                                                      {setObj.is_completed ? (
+                                                      {isDone ? (
                                                         <span className="inline-flex items-center text-[10px] font-bold text-emerald-400 bg-emerald-950 px-1.5 py-0.5 rounded border border-emerald-800/50">
                                                           <CheckCircle2 className="w-2.5 h-2.5 mr-1" />
                                                           Hecha

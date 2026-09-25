@@ -11,6 +11,7 @@ import {
   ArrowUpRight,
   Loader2,
   Calendar,
+  Activity,
   Clock,
   Dumbbell,
   ShieldCheck,
@@ -938,6 +939,14 @@ export default function AdminClientsDirectoryPage() {
                             <span>Saludar</span>
                           </a>
                         )}
+                        <Link
+                          href={`/admin/clients/${client.id}#historial-entrenamientos`}
+                          className="inline-flex items-center space-x-1 px-2.5 py-1.5 bg-emerald-950/70 hover:bg-emerald-900/90 text-emerald-300 hover:text-white border border-emerald-800/60 rounded-xl text-xs font-bold transition shadow-sm"
+                          title="Ver historial de entrenamientos y series realizadas de este alumno"
+                        >
+                          <Activity className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Historial ({client.completedSessionsCount})</span>
+                        </Link>
                         <Link
                           href={`/admin/clients/${client.id}`}
                           className="inline-flex items-center space-x-1 px-3 py-1.5 bg-gray-800 hover:bg-emerald-600 text-gray-300 hover:text-white rounded-xl text-xs font-bold transition"
