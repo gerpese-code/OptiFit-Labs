@@ -719,10 +719,27 @@ export default function WorkoutScreen() {
     }
   };
 
-  const handleBackToDashboard = () => {
+  const handleBackToDashboard = async () => {
     triggerHaptic('tap');
+    if (todayDay && user?.id && workingExercises.length > 0) {
+      try {
+        await saveDayWorkoutSnapshot(
+          user.id,
+          todayDay.id,
+          workingExercises,
+          completedSets,
+          unit,
+          toStandardKg,
+          todayDay.name
+        );
+        syncRoutineExercisesToSupabase(supabase, todayDay.id, workingExercises).catch(() => {});
+      } catch (e) {
+        console.warn('Aviso guardando snapshot al salir:', e);
+      }
+    }
     setSelectedRoutineDay(null);
     setSelectedMuscleGroup(null);
+    loadTodayWorkout();
   };
 
   const loadTodayWorkout = async () => {
@@ -1130,8 +1147,8 @@ export default function WorkoutScreen() {
     loadTodayWorkout();
   }, [user]);
 
-  // Agregar serie adicional en la sesión (SIN alterar la rutina original del coach)
-  const handleAddExtraSet = (exIndex: number) => {
+  // Agregar serie adicional en la sesión y persistir para las próximas sesiones
+  const handleAddExtraSet = async (exIndex: number) => {
     const updated = [...workingExercises];
     const currentSets = updated[exIndex].sets;
     const lastSet = currentSets[currentSets.length - 1];
@@ -1141,26 +1158,62 @@ export default function WorkoutScreen() {
 
     const newSet: WorkingSetItem = {
       id: extraSetId,
-      routine_exercise_set_id: null, // Es extra, no modifica el plan del coach
+      routine_exercise_set_id: null,
       set_number: newSetNumber,
       target_reps: lastSet ? lastSet.target_reps : 10,
       target_weight_kg: lastSet ? lastSet.target_weight_kg : 20,
       target_rpe: lastSet ? lastSet.target_rpe : 8,
       rest_seconds: lastSet ? lastSet.rest_seconds : 90,
-      is_extra: true,
+      is_extra: false,
     };
 
     updated[exIndex].sets.push(newSet);
     setWorkingExercises(updated);
+    await AsyncStorage.setItem('@fitnesspro_working_exercises', JSON.stringify(updated));
+
+    if (todayDay && user?.id) {
+      await saveDayWorkoutSnapshot(
+        user.id,
+        todayDay.id,
+        updated,
+        completedSets,
+        unit,
+        toStandardKg,
+        todayDay.name
+      );
+      syncRoutineExercisesToSupabase(supabase, todayDay.id, updated).catch(() => {});
+    }
   };
 
-  // Quitar una serie no realizada o extra
-  const handleRemoveSet = (exIndex: number, setIdx: number) => {
+  // Quitar una serie y persistir para las próximas sesiones
+  const handleRemoveSet = async (exIndex: number, setIdx: number) => {
     const updated = [...workingExercises];
+    const removedSet = updated[exIndex].sets[setIdx];
     updated[exIndex].sets = updated[exIndex].sets
       .filter((_, i) => i !== setIdx)
       .map((s, idx) => ({ ...s, set_number: idx + 1 }));
     setWorkingExercises(updated);
+    await AsyncStorage.setItem('@fitnesspro_working_exercises', JSON.stringify(updated));
+
+    if (removedSet) {
+      const cSetsCopy = { ...completedSets };
+      delete cSetsCopy[removedSet.id];
+      setCompletedSets(cSetsCopy);
+      await AsyncStorage.setItem('@fitnesspro_completed_sets', JSON.stringify(cSetsCopy));
+    }
+
+    if (todayDay && user?.id) {
+      await saveDayWorkoutSnapshot(
+        user.id,
+        todayDay.id,
+        updated,
+        completedSets,
+        unit,
+        toStandardKg,
+        todayDay.name
+      );
+      syncRoutineExercisesToSupabase(supabase, todayDay.id, updated).catch(() => {});
+    }
   };
 
   const generateUUID = (): string => {
@@ -3155,6 +3208,18 @@ export default function WorkoutScreen() {
                               updated[exIdx].sets[setIdx].target_reps = reps;
                               updated[exIdx].sets[setIdx].target_weight_kg = toStandardKg(weight, unit);
                               setWorkingExercises(updated);
+                              AsyncStorage.setItem('@fitnesspro_working_exercises', JSON.stringify(updated));
+                              if (todayDay && user?.id) {
+                                saveDayWorkoutSnapshot(
+                                  user.id,
+                                  todayDay.id,
+                                  updated,
+                                  completedSets,
+                                  unit,
+                                  toStandardKg,
+                                  todayDay.name
+                                ).catch(() => {});
+                              }
                             }
                           }}
                           onChangeSuperset={(isSuperset, count, reps) => {
@@ -3168,6 +3233,18 @@ export default function WorkoutScreen() {
                                 updated[exIdx].sets[setIdx].target_reps = sum;
                               }
                               setWorkingExercises(updated);
+                              AsyncStorage.setItem('@fitnesspro_working_exercises', JSON.stringify(updated));
+                              if (todayDay && user?.id) {
+                                saveDayWorkoutSnapshot(
+                                  user.id,
+                                  todayDay.id,
+                                  updated,
+                                  completedSets,
+                                  unit,
+                                  toStandardKg,
+                                  todayDay.name
+                                ).catch(() => {});
+                              }
                             }
                           }}
                           onRemoveSet={

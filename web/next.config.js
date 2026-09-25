@@ -14,6 +14,18 @@ const nextConfig = {
       },
     ],
   },
+  async rewrites() {
+    return [
+      {
+        source: '/app',
+        destination: '/app/index.html',
+      },
+      {
+        source: '/OptiFit-Labs/app/:path*',
+        destination: '/app/:path*',
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;

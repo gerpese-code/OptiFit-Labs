@@ -129,10 +129,39 @@ export default function InteractiveSetRow({
     }
   };
 
-  const handleEndEditing = () => {
+  // Limpieza automática al hacer foco para rellenar de inmediato sin tener que borrar
+  const handleRepsFocus = () => {
+    setActualReps('');
+  };
+
+  const handleRepsEndEditing = () => {
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    const currentReps = parseInt(actualReps, 10) || 0;
+    let finalVal = actualReps.trim();
+    if (!finalVal) {
+      finalVal = set.target_reps.toString();
+      setActualReps(finalVal);
+    }
+    const currentReps = parseInt(finalVal, 10) || 0;
     const currentWeight = parseInt(actualWeight, 10) || 0;
+    if (currentReps > 0 && currentWeight >= 0 && !isCompleted) {
+      triggerHaptic('success');
+      onComplete(currentReps, currentWeight, true);
+    }
+  };
+
+  const handleWeightFocus = () => {
+    setActualWeight('');
+  };
+
+  const handleWeightEndEditing = () => {
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    let finalVal = actualWeight.trim();
+    if (!finalVal) {
+      finalVal = targetWeightInUnit.toString();
+      setActualWeight(finalVal);
+    }
+    const currentReps = parseInt(actualReps, 10) || 0;
+    const currentWeight = parseInt(finalVal, 10) || 0;
     if (currentReps > 0 && currentWeight >= 0 && !isCompleted) {
       triggerHaptic('success');
       onComplete(currentReps, currentWeight, true);
@@ -221,6 +250,33 @@ export default function InteractiveSetRow({
     if (isCompleted) onComplete(sum, weightNum, true);
   };
 
+  const handleContinuousFocus = (idx: number) => {
+    const updated = [...continuousReps];
+    updated[idx] = '';
+    setContinuousReps(updated);
+  };
+
+  const handleContinuousEndEditing = (idx: number) => {
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    let val = continuousReps[idx]?.trim();
+    if (!val) {
+      val = '6';
+      const updated = [...continuousReps];
+      updated[idx] = '6';
+      setContinuousReps(updated);
+    }
+    const repsNumbers = continuousReps.map((r) => parseInt(r, 10) || 6);
+    const sum = repsNumbers.reduce((acc, curr) => acc + curr, 0);
+    setActualReps(sum.toString());
+    if (onChangeActual) onChangeActual(sum, weightNum);
+    if (onChangeSuperset) onChangeSuperset(true, supersetCount, repsNumbers);
+    if (isCompleted) {
+      onComplete(sum, weightNum, true);
+    } else if (sum > 0) {
+      triggerAutoComplete(sum, weightNum);
+    }
+  };
+
   // Modificar repeticiones de una micro-serie específica (ej: set 2 de 4)
   const handleContinuousRepChange = (idx: number, txt: string) => {
     const cleanTxt = txt.replace(/[^0-9]/g, '');
@@ -307,10 +363,10 @@ export default function InteractiveSetRow({
               ]}
               keyboardType="number-pad"
               value={actualReps}
+              onFocus={handleRepsFocus}
               onChangeText={handleRepsChange}
-              onEndEditing={handleEndEditing}
-              selectTextOnFocus
-              placeholder="0"
+              onEndEditing={handleRepsEndEditing}
+              placeholder={set.target_reps ? set.target_reps.toString() : '0'}
               placeholderTextColor="#475569"
             />
           </View>
@@ -328,10 +384,10 @@ export default function InteractiveSetRow({
               ]}
               keyboardType="number-pad"
               value={actualWeight}
+              onFocus={handleWeightFocus}
               onChangeText={handleWeightChange}
-              onEndEditing={handleEndEditing}
-              selectTextOnFocus
-              placeholder="0"
+              onEndEditing={handleWeightEndEditing}
+              placeholder={targetWeightInUnit ? targetWeightInUnit.toString() : '0'}
               placeholderTextColor="#475569"
             />
           </View>
@@ -404,8 +460,9 @@ export default function InteractiveSetRow({
                     style={styles.continuousInput}
                     keyboardType="number-pad"
                     value={continuousReps[idx] || ''}
+                    onFocus={() => handleContinuousFocus(idx)}
                     onChangeText={(txt) => handleContinuousRepChange(idx, txt)}
-                    selectTextOnFocus
+                    onEndEditing={() => handleContinuousEndEditing(idx)}
                     placeholder="6"
                     placeholderTextColor="#64748b"
                   />
@@ -547,28 +604,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   inputLabel: {
-    fontSize: 9,
-    fontWeight: '800',
+    fontSize: 10,
+    fontWeight: '900',
     color: '#94a3b8',
-    marginBottom: 3,
-    letterSpacing: 0.5,
+    marginBottom: 4,
+    letterSpacing: 0.8,
   },
   largeInput: {
-    height: 48,
+    height: 52,
     backgroundColor: '#020617',
-    borderRadius: 11,
-    borderWidth: 1.5,
+    borderRadius: 12,
+    borderWidth: 2,
     borderColor: '#334155',
     color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 20,
+    fontWeight: '900',
     textAlign: 'center',
   },
   repsInput: {
-    width: 72,
+    width: 80,
   },
   weightInput: {
-    width: 82,
+    width: 92,
   },
   inputCompleted: {
     borderColor: '#10b981',
