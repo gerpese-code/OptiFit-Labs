@@ -18,7 +18,50 @@ export interface ExerciseProgressionOverride {
   sets: ProgressionSetItem[];
 }
 
+export interface SavedDayExerciseItem {
+  id: string;
+  exercise_id: string;
+  exercise: {
+    id: string;
+    name: string;
+    muscle_group?: string;
+    image_urls?: string[];
+    gif_url?: string | null;
+    is_custom?: boolean;
+    created_by?: string | null;
+  };
+  notes?: string | null;
+  order_index?: number;
+  sets: {
+    id: string;
+    routine_exercise_set_id?: string | null;
+    set_number: number;
+    target_reps: number;
+    target_weight_kg: number;
+    target_rpe?: number | null;
+    rest_seconds: number;
+    is_extra?: boolean;
+  }[];
+}
+
+export interface DayWorkoutSnapshot {
+  userId: string;
+  dayId: string;
+  dayName?: string;
+  lastUpdated: string;
+  exercises: SavedDayExerciseItem[];
+}
+
 export type DayProgressionOverrides = Record<string, ExerciseProgressionOverride>;
+
+/**
+ * Clave de almacenamiento para la estructura completa personalizada del día
+ */
+export function getDaySnapshotStorageKey(userId: string, dayId: string): string {
+  const cleanUser = userId || 'guest';
+  const cleanDay = dayId || 'default-day';
+  return `@fitnesspro_day_workout_snapshot_${cleanUser}_${cleanDay}`;
+}
 
 /**
  * Genera la clave de almacenamiento para las progresiones de un día de rutina específico
@@ -273,3 +316,193 @@ export async function clearProgressionOverrides(
     return {};
   }
 }
+
+/**
+ * Guarda el snapshot completo de ejercicios (incluyendo agregados/eliminados) para un día
+ */
+export async function saveDayWorkoutSnapshot(
+  userId: string,
+  dayId: string,
+  workingExercises: {
+    id: string;
+    exercise_id: string;
+    exercise?: any;
+    notes?: string | null;
+    sets: WorkingSetItem[];
+  }[],
+  completedSets: Record<string, { reps: number; weight: number; completed: boolean }>,
+  unit: 'kg' | 'lbs',
+  toStandardKg: (w: number, u: 'kg' | 'lbs') => number,
+  dayName?: string
+): Promise<DayWorkoutSnapshot> {
+  const nowStr = new Date().toISOString();
+
+  const savedExercises: SavedDayExerciseItem[] = workingExercises.map((rx, exIdx) => {
+    const exInfo = rx.exercise || {};
+    const sets = rx.sets.map((s, sIdx) => {
+      const logged = completedSets[s.id];
+      let finalReps = s.target_reps;
+      let finalWeightKg = s.target_weight_kg || 0;
+
+      if (logged && logged.completed) {
+        finalReps = logged.reps;
+        finalWeightKg = toStandardKg(logged.weight, unit);
+      }
+
+      return {
+        id: `snap-${rx.exercise_id || rx.id}-${sIdx + 1}-${Date.now()}`,
+        routine_exercise_set_id: s.routine_exercise_set_id || null,
+        set_number: sIdx + 1,
+        target_reps: Math.max(1, finalReps),
+        target_weight_kg: Math.max(0, Math.round(finalWeightKg)),
+        target_rpe: s.target_rpe || null,
+        rest_seconds: s.rest_seconds || 90,
+        is_extra: s.is_extra || false,
+      };
+    });
+
+    return {
+      id: rx.id || `rx-snap-${exIdx}-${Date.now()}`,
+      exercise_id: rx.exercise_id || rx.id,
+      exercise: {
+        id: exInfo.id || rx.exercise_id || rx.id,
+        name: exInfo.name || 'Ejercicio',
+        muscle_group: exInfo.muscle_group || 'General',
+        image_urls: exInfo.image_urls || [],
+        gif_url: exInfo.gif_url || null,
+        is_custom: !!exInfo.is_custom,
+        created_by: exInfo.created_by || null,
+      },
+      notes: rx.notes || null,
+      order_index: exIdx,
+      sets,
+    };
+  });
+
+  const snapshot: DayWorkoutSnapshot = {
+    userId,
+    dayId,
+    dayName,
+    lastUpdated: nowStr,
+    exercises: savedExercises,
+  };
+
+  const key = getDaySnapshotStorageKey(userId, dayId);
+  try {
+    await AsyncStorage.setItem(key, JSON.stringify(snapshot));
+  } catch (e) {
+    console.warn('Error al guardar snapshot del día:', e);
+  }
+
+  return snapshot;
+}
+
+/**
+ * Carga el snapshot personalizado de la última rutina realizada para un día
+ */
+export async function loadDayWorkoutSnapshot(
+  userId: string,
+  dayId: string,
+  supabaseClient?: any
+): Promise<DayWorkoutSnapshot | null> {
+  if (!userId || !dayId) return null;
+  const key = getDaySnapshotStorageKey(userId, dayId);
+
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.exercises) && parsed.exercises.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn('Error leyendo snapshot local:', e);
+  }
+
+  // Respaldo remoto desde Supabase
+  if (supabaseClient) {
+    try {
+      const { data: lastSession } = await supabaseClient
+        .from('workout_sessions')
+        .select('id, notes, completed_at, status, created_at')
+        .eq('client_id', userId)
+        .eq('routine_day_id', dayId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (lastSession?.notes) {
+        const parsed = typeof lastSession.notes === 'string' ? JSON.parse(lastSession.notes) : lastSession.notes;
+
+        if (parsed.working_exercises_snapshot && Array.isArray(parsed.working_exercises_snapshot) && parsed.working_exercises_snapshot.length > 0) {
+          const snapshot: DayWorkoutSnapshot = {
+            userId,
+            dayId,
+            dayName: parsed.dayName,
+            lastUpdated: lastSession.completed_at || lastSession.created_at,
+            exercises: parsed.working_exercises_snapshot,
+          };
+          AsyncStorage.setItem(key, JSON.stringify(snapshot)).catch(() => {});
+          return snapshot;
+        }
+
+        if (parsed.exercises && Array.isArray(parsed.exercises) && parsed.exercises.length > 0) {
+          const reconstructed: SavedDayExerciseItem[] = parsed.exercises.map((ex: any, idx: number) => ({
+            id: `snap-remote-${idx}-${Date.now()}`,
+            exercise_id: ex.exercise_id,
+            exercise: {
+              id: ex.exercise_id,
+              name: ex.name,
+              muscle_group: ex.muscle_group || 'General',
+              image_urls: ex.image_url ? [ex.image_url] : [],
+              gif_url: ex.image_url || null,
+            },
+            notes: null,
+            order_index: idx,
+            sets: (ex.sets || []).map((s: any, sIdx: number) => ({
+              id: `snap-remote-set-${sIdx}-${Date.now()}`,
+              routine_exercise_set_id: s.routine_exercise_set_id || null,
+              set_number: s.set_number || sIdx + 1,
+              target_reps: s.reps || s.target_reps || 10,
+              target_weight_kg: Math.round(s.weight_kg ?? (s.weight || 0)),
+              target_rpe: s.rpe || null,
+              rest_seconds: s.rest_seconds || 90,
+              is_extra: s.is_extra || false,
+            })),
+          }));
+
+          const snapshot: DayWorkoutSnapshot = {
+            userId,
+            dayId,
+            dayName: parsed.dayName,
+            lastUpdated: lastSession.completed_at || lastSession.created_at,
+            exercises: reconstructed,
+          };
+          AsyncStorage.setItem(key, JSON.stringify(snapshot)).catch(() => {});
+          return snapshot;
+        }
+      }
+    } catch (remoteErr) {
+      console.warn('Error recuperando snapshot remoto de Supabase:', remoteErr);
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Elimina el snapshot para que el alumno vuelva a la plantilla original prescrita por el coach
+ */
+export async function clearDayWorkoutSnapshot(
+  userId: string,
+  dayId: string
+): Promise<void> {
+  const key = getDaySnapshotStorageKey(userId, dayId);
+  try {
+    await AsyncStorage.removeItem(key);
+  } catch (e) {
+    console.warn('Error al limpiar snapshot:', e);
+  }
+}
+

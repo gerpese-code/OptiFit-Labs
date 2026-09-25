@@ -40,6 +40,7 @@ import {
   BicepsFlexed,
   MessageCircle,
   Edit3,
+  History,
 } from 'lucide-react-native';
 import { useFocusEffect } from 'expo-router';
 import { useLanguage } from '@/context/LanguageContext';
@@ -57,6 +58,7 @@ import CreateRoutineModal from '@/components/workout/CreateRoutineModal';
 import CreateCustomExerciseModal from '@/components/workout/CreateCustomExerciseModal';
 import BarbellCalculatorModal from '@/components/workout/BarbellCalculatorModal';
 import ExerciseHistoryModal from '@/components/workout/ExerciseHistoryModal';
+import WorkoutHistoryModal from '@/components/workout/WorkoutHistoryModal';
 import RoutineSplitCard from '@/components/workout/RoutineSplitCard';
 import MuscleGroupCard from '@/components/workout/MuscleGroupCard';
 import GymBackground from '@/components/common/GymBackground';
@@ -80,6 +82,9 @@ import {
   recordSessionProgression,
   clearProgressionOverrides,
   fetchLastCompletedSessionProgression,
+  saveDayWorkoutSnapshot,
+  loadDayWorkoutSnapshot,
+  clearDayWorkoutSnapshot,
   DayProgressionOverrides,
 } from '@/lib/routineProgression';
 import { supabase } from '@/lib/supabase';
@@ -133,6 +138,7 @@ export default function WorkoutScreen() {
   const [substitutingExerciseIndex, setSubstitutingExerciseIndex] = useState<number | null>(null);
   const [customizingExerciseIndex, setCustomizingExerciseIndex] = useState<number | null>(null);
   const [showCustomizeModal, setShowCustomizeModal] = useState(false);
+  const [showWorkoutHistoryModal, setShowWorkoutHistoryModal] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatusEvent>({
     isSyncing: false,
     isOnline: true,
@@ -542,6 +548,37 @@ export default function WorkoutScreen() {
     );
     setOriginalExercises(mapped);
 
+    // 1. Cargar snapshot de la última rutina realizada si el alumno personalizó ejercicios/series
+    const snapshot = await loadDayWorkoutSnapshot(user?.id || 'guest', selectedDay.id, supabase);
+
+    if (snapshot && snapshot.exercises && snapshot.exercises.length > 0) {
+      const workingFromSnapshot: WorkingExerciseItem[] = snapshot.exercises.map((sx, idx) => ({
+        id: sx.id || `snap-item-${idx}-${Date.now()}`,
+        exercise_id: sx.exercise_id,
+        exercise: sx.exercise,
+        notes: sx.notes || null,
+        sets: (sx.sets || []).map((s, sIdx) => ({
+          id: `work-set-${sx.exercise_id || idx}-${s.set_number || sIdx + 1}-${sIdx}-${Date.now()}`,
+          routine_exercise_set_id: s.routine_exercise_set_id || null,
+          set_number: s.set_number || sIdx + 1,
+          target_reps: s.target_reps,
+          target_weight_kg: s.target_weight_kg,
+          target_rpe: s.target_rpe ?? null,
+          rest_seconds: s.rest_seconds || 90,
+          is_extra: s.is_extra || false,
+        })),
+      }));
+
+      // Cargar también progressionOverrides para marcas visuales
+      const overrides = await getProgressionOverrides(user?.id || 'guest', selectedDay.id);
+      setProgressionOverrides(overrides);
+
+      setWorkingExercises(workingFromSnapshot);
+      await AsyncStorage.setItem('@fitnesspro_working_exercises', JSON.stringify(workingFromSnapshot));
+      return;
+    }
+
+    // 2. Si no hay snapshot personalizado, cargar plantilla original combinada con overrides de progresión
     let overrides = await getProgressionOverrides(user?.id || 'guest', selectedDay.id);
     if ((!overrides || Object.keys(overrides).length === 0) && user?.id) {
       const dbOverrides = await fetchLastCompletedSessionProgression(user.id, selectedDay.id, supabase);
@@ -576,6 +613,7 @@ export default function WorkoutScreen() {
     });
 
     setWorkingExercises(merged);
+    await AsyncStorage.setItem('@fitnesspro_working_exercises', JSON.stringify(merged));
   };
 
   const handleSelectRoutineDay = async (day: RoutineDay) => {
@@ -1402,6 +1440,7 @@ export default function WorkoutScreen() {
     if (!todayDay || !user?.id) return;
     try {
       await clearProgressionOverrides(user.id, todayDay.id);
+      await clearDayWorkoutSnapshot(user.id, todayDay.id);
       setProgressionOverrides({});
 
       // Restaurar ejercicios de trabajo a una copia limpia de originalExercises
@@ -1413,7 +1452,9 @@ export default function WorkoutScreen() {
         })),
       }));
       setWorkingExercises(restored);
+      await AsyncStorage.setItem('@fitnesspro_working_exercises', JSON.stringify(restored));
       setCompletedSets({});
+      await AsyncStorage.removeItem('@fitnesspro_completed_sets');
 
       Alert.alert(
         t('common.success', 'Éxito'),
@@ -1796,6 +1837,7 @@ export default function WorkoutScreen() {
         cardio_calories: stats.cardioKcal,
         volume_kg: stats.totalVolumeKg,
         exercises: exercisesSummary,
+        working_exercises_snapshot: workingExercises,
       }),
     };
 
@@ -1873,6 +1915,17 @@ export default function WorkoutScreen() {
           toStandardKg
         );
         setProgressionOverrides(updatedOverrides);
+
+        // Guardar snapshot de la rutina realizada (con ejercicios agregados/eliminados y series/pesos)
+        await saveDayWorkoutSnapshot(
+          user.id,
+          todayDay.id,
+          workingExercises,
+          completedSets,
+          unit,
+          toStandardKg,
+          todayDay.name
+        );
       } catch (progErr) {
         console.warn('Error al guardar progresión adaptativa:', progErr);
       }
@@ -1924,6 +1977,7 @@ export default function WorkoutScreen() {
     await AsyncStorage.removeItem('@fitnesspro_active_session_date');
     await AsyncStorage.removeItem('@fitnesspro_active_day_id');
     await AsyncStorage.removeItem('@fitnesspro_completed_sets');
+    await AsyncStorage.removeItem('@fitnesspro_working_exercises');
     await AsyncStorage.removeItem('@fitnesspro_session_start_time');
     await AsyncStorage.removeItem('@fitnesspro_session_rest_seconds');
 
@@ -2384,6 +2438,35 @@ export default function WorkoutScreen() {
               </View>
             </View>
 
+            {/* Botón Principal de Historial de Entrenamientos */}
+            <TouchableOpacity
+              style={styles.historyWorkoutsBtn}
+              onPress={() => setShowWorkoutHistoryModal(true)}
+              activeOpacity={0.82}
+            >
+              <View style={styles.historyWorkoutsBtnLeft}>
+                <View style={styles.historyWorkoutsIconWrap}>
+                  <History size={18} color="#10b981" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.historyWorkoutsBtnTitle}>
+                    {language === 'es' ? 'Historial de Entrenamientos' : 'Workout History'}
+                  </Text>
+                  <Text style={styles.historyWorkoutsBtnSub}>
+                    {language === 'es'
+                      ? 'Revisa cada sesión con fecha, pesos y repeticiones'
+                      : 'Review dates, past routines, weights and reps'}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.historyWorkoutsBadge}>
+                <Text style={styles.historyWorkoutsBadgeText}>
+                  {language === 'es' ? 'Ver Historial' : 'View Log'}
+                </Text>
+                <ChevronRight size={13} color="#10b981" />
+              </View>
+            </TouchableOpacity>
+
             {/* Listado de Botones de Grupos Musculares en 2 Columnas */}
             <View style={styles.muscleGroupsGrid}>
               {orderedMuscleGroups.map((mg) => {
@@ -2536,6 +2619,17 @@ export default function WorkoutScreen() {
                     {Object.keys(progressionOverrides).length > 0 && (
                       <View style={styles.modIndicatorDot} />
                     )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.historyBannerBtn}
+                    onPress={() => setShowWorkoutHistoryModal(true)}
+                    activeOpacity={0.7}
+                  >
+                    <History size={12} color="#10b981" style={{ marginRight: 4 }} />
+                    <Text style={styles.historyBannerBtnText}>
+                      {language === 'es' ? 'Historial' : 'History'}
+                    </Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -2910,6 +3004,12 @@ export default function WorkoutScreen() {
         hasModifications={Object.keys(progressionOverrides).length > 0}
         onResetAll={handleResetAllToOriginal}
         onResetExercise={handleResetExerciseToOriginal}
+      />
+
+      <WorkoutHistoryModal
+        visible={showWorkoutHistoryModal}
+        onClose={() => setShowWorkoutHistoryModal(false)}
+        userId={user?.id || ''}
       />
 
       <BioHackerPeptidesModal
@@ -4113,6 +4213,81 @@ const styles = StyleSheet.create({
   totalWorkoutsBadgeText: {
     fontSize: 11,
     fontWeight: '800',
+    color: '#10b981',
+  },
+  historyWorkoutsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#0f172a',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.35)',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 16,
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  historyWorkoutsBtnLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 10,
+  },
+  historyWorkoutsIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  historyWorkoutsBtnTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: 0.1,
+  },
+  historyWorkoutsBtnSub: {
+    fontSize: 11,
+    color: '#94a3b8',
+    marginTop: 2,
+  },
+  historyWorkoutsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 3,
+  },
+  historyWorkoutsBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#10b981',
+  },
+  historyBannerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.35)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4.5,
+    gap: 4,
+  },
+  historyBannerBtnText: {
+    fontSize: 10.5,
+    fontWeight: '700',
     color: '#10b981',
   },
   routineCardsList: {
