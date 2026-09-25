@@ -612,6 +612,14 @@ export default function WorkoutScreen() {
         })),
       }));
 
+      // Si el coach añadió nuevos ejercicios a la rutina oficial que no estaban en el snapshot previo,
+      // anexarlos automáticamente para que el alumno siempre disponga de los nuevos ejercicios asignados.
+      const snapshotExIds = new Set(snapshot.exercises.map((sx) => sx.exercise_id));
+      const newlyAddedFromRoutine = mapped.filter((rx) => rx.exercise_id && !snapshotExIds.has(rx.exercise_id));
+      if (newlyAddedFromRoutine.length > 0) {
+        workingFromSnapshot.push(...newlyAddedFromRoutine);
+      }
+
       // Cargar también progressionOverrides para marcas visuales
       const overrides = await getProgressionOverrides(user?.id || 'guest', selectedDay.id);
       setProgressionOverrides(overrides);
