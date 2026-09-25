@@ -354,7 +354,7 @@ export async function saveDayWorkoutSnapshot(
         routine_exercise_set_id: s.routine_exercise_set_id || null,
         set_number: sIdx + 1,
         target_reps: Math.max(1, finalReps),
-        target_weight_kg: Math.max(0, Math.round(finalWeightKg)),
+        target_weight_kg: Math.max(0, Math.round(finalWeightKg * 10) / 10),
         target_rpe: s.target_rpe || null,
         rest_seconds: s.rest_seconds || 90,
         is_extra: s.is_extra || false,
@@ -399,11 +399,14 @@ export async function saveDayWorkoutSnapshot(
 
 /**
  * Carga el snapshot personalizado de la última rutina realizada para un día
+ * Si la rutina fue actualizada en la base de datos (por el coach/admin) después de este snapshot,
+ * el snapshot se descarta automáticamente para reflejar los nuevos cambios de la rutina.
  */
 export async function loadDayWorkoutSnapshot(
   userId: string,
   dayId: string,
-  supabaseClient?: any
+  supabaseClient?: any,
+  routineUpdatedAt?: string | null
 ): Promise<DayWorkoutSnapshot | null> {
   if (!userId || !dayId) return null;
   const key = getDaySnapshotStorageKey(userId, dayId);
@@ -411,8 +414,16 @@ export async function loadDayWorkoutSnapshot(
   try {
     const raw = await AsyncStorage.getItem(key);
     if (raw) {
-      const parsed = JSON.parse(raw);
+      const parsed: DayWorkoutSnapshot = JSON.parse(raw);
       if (parsed && Array.isArray(parsed.exercises) && parsed.exercises.length > 0) {
+        if (routineUpdatedAt && parsed.lastUpdated) {
+          const routineTime = new Date(routineUpdatedAt).getTime();
+          const snapshotTime = new Date(parsed.lastUpdated).getTime();
+          if (routineTime > snapshotTime) {
+            await AsyncStorage.removeItem(key);
+            return null;
+          }
+        }
         return parsed;
       }
     }
@@ -428,19 +439,37 @@ export async function loadDayWorkoutSnapshot(
         .select('id, notes, completed_at, status, created_at')
         .eq('client_id', userId)
         .eq('routine_day_id', dayId)
-        .order('created_at', { ascending: false })
+        .eq('status', 'completed')
+        .order('completed_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
       if (lastSession?.notes) {
-        const parsed = typeof lastSession.notes === 'string' ? JSON.parse(lastSession.notes) : lastSession.notes;
+        const sessionTimeStr = lastSession.completed_at || lastSession.created_at;
+        if (routineUpdatedAt && sessionTimeStr) {
+          const routineTime = new Date(routineUpdatedAt).getTime();
+          const sessionTime = new Date(sessionTimeStr).getTime();
+          if (routineTime > sessionTime) {
+            // El admin o coach actualizó la rutina después de la última sesión realizada
+            return null;
+          }
+        }
+
+        let parsed: any = null;
+        try {
+          parsed = typeof lastSession.notes === 'string' ? JSON.parse(lastSession.notes) : lastSession.notes;
+        } catch (parseErr) {
+          console.warn('Error al parsear notes de la última sesión:', parseErr);
+        }
+
+        if (!parsed) return null;
 
         if (parsed.working_exercises_snapshot && Array.isArray(parsed.working_exercises_snapshot) && parsed.working_exercises_snapshot.length > 0) {
           const snapshot: DayWorkoutSnapshot = {
             userId,
             dayId,
             dayName: parsed.dayName,
-            lastUpdated: lastSession.completed_at || lastSession.created_at,
+            lastUpdated: sessionTimeStr || new Date().toISOString(),
             exercises: parsed.working_exercises_snapshot,
           };
           AsyncStorage.setItem(key, JSON.stringify(snapshot)).catch(() => {});
@@ -465,7 +494,7 @@ export async function loadDayWorkoutSnapshot(
               routine_exercise_set_id: s.routine_exercise_set_id || null,
               set_number: s.set_number || sIdx + 1,
               target_reps: s.reps || s.target_reps || 10,
-              target_weight_kg: Math.round(s.weight_kg ?? (s.weight || 0)),
+              target_weight_kg: Math.max(0, Math.round((s.weight_kg ?? (s.weight || 0)) * 10) / 10),
               target_rpe: s.rpe || null,
               rest_seconds: s.rest_seconds || 90,
               is_extra: s.is_extra || false,
@@ -476,7 +505,7 @@ export async function loadDayWorkoutSnapshot(
             userId,
             dayId,
             dayName: parsed.dayName,
-            lastUpdated: lastSession.completed_at || lastSession.created_at,
+            lastUpdated: sessionTimeStr || new Date().toISOString(),
             exercises: reconstructed,
           };
           AsyncStorage.setItem(key, JSON.stringify(snapshot)).catch(() => {});

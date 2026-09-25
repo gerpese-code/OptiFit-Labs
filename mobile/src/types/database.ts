@@ -49,6 +49,7 @@ export interface Routine {
   is_active: boolean;
   is_template: boolean;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface RoutineDay {
@@ -60,6 +61,8 @@ export interface RoutineDay {
   muscle_group?: StandardMuscleGroup | string | null;
   completion_count?: number;
   last_completed_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
   routine_exercises?: RoutineExercise[];
 }
 

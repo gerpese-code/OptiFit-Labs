@@ -574,6 +574,7 @@ export default function EditRoutinePage() {
           name: day.name,
           day_number: day.day_number,
           order_index: dayIdx,
+          updated_at: new Date().toISOString(),
         };
 
         // Identificar día existente: por day.id si existe, o por coincidencia posicional en existingDayList

@@ -549,7 +549,15 @@ export default function WorkoutScreen() {
     setOriginalExercises(mapped);
 
     // 1. Cargar snapshot de la última rutina realizada si el alumno personalizó ejercicios/series
-    const snapshot = await loadDayWorkoutSnapshot(user?.id || 'guest', selectedDay.id, supabase);
+    const dayUpdated = (selectedDay as any).updated_at;
+    const routineUpdated = activeRoutine?.updated_at;
+    let routineUpdatedAt: string | null = null;
+    if (dayUpdated && routineUpdated) {
+      routineUpdatedAt = new Date(dayUpdated).getTime() > new Date(routineUpdated).getTime() ? dayUpdated : routineUpdated;
+    } else {
+      routineUpdatedAt = dayUpdated || routineUpdated || null;
+    }
+    const snapshot = await loadDayWorkoutSnapshot(user?.id || 'guest', selectedDay.id, supabase, routineUpdatedAt);
 
     if (snapshot && snapshot.exercises && snapshot.exercises.length > 0) {
       const workingFromSnapshot: WorkingExerciseItem[] = snapshot.exercises.map((sx, idx) => ({
@@ -1527,6 +1535,28 @@ export default function WorkoutScreen() {
         };
         setWorkingExercises(updated);
         await AsyncStorage.setItem('@fitnesspro_working_exercises', JSON.stringify(updated));
+
+        // Actualizar en base de datos si es un ejercicio persistido en la rutina
+        if (isValidUUID(currentItem.id)) {
+          try {
+            await supabase.from('routine_exercises').update({ exercise_id: newExercise.id }).eq('id', currentItem.id);
+          } catch (e) {
+            console.warn('Error actualizando routine_exercises en Supabase:', e);
+          }
+        }
+
+        // Actualizar snapshot inmediatamente para que quede guardado incluso si sale de la pantalla
+        if (todayDay && user?.id) {
+          await saveDayWorkoutSnapshot(
+            user.id,
+            todayDay.id,
+            updated,
+            completedSets,
+            unit,
+            toStandardKg,
+            todayDay.name
+          );
+        }
       }
       setCustomizingExerciseIndex(null);
     }
@@ -1545,6 +1575,28 @@ export default function WorkoutScreen() {
         };
         setWorkingExercises(updated);
         await AsyncStorage.setItem('@fitnesspro_working_exercises', JSON.stringify(updated));
+
+        // Actualizar en Supabase si es un ejercicio persistido en routine_exercises
+        if (isValidUUID(currentItem.id)) {
+          try {
+            await supabase.from('routine_exercises').update({ exercise_id: exercise.id }).eq('id', currentItem.id);
+          } catch (e) {
+            console.warn('Error al actualizar routine_exercises en Supabase:', e);
+          }
+        }
+
+        // Guardar snapshot de inmediato con la sustitución
+        if (todayDay && user?.id) {
+          await saveDayWorkoutSnapshot(
+            user.id,
+            todayDay.id,
+            updated,
+            completedSets,
+            unit,
+            toStandardKg,
+            todayDay.name
+          );
+        }
       }
       setSubstitutingExerciseIndex(null);
     } else {
@@ -1590,6 +1642,19 @@ export default function WorkoutScreen() {
       const updated = [...workingExercises, newWorkingItem];
       setWorkingExercises(updated);
       await AsyncStorage.setItem('@fitnesspro_working_exercises', JSON.stringify(updated));
+
+      // Guardar snapshot de inmediato con el nuevo ejercicio
+      if (todayDay && user?.id) {
+        await saveDayWorkoutSnapshot(
+          user.id,
+          todayDay.id,
+          updated,
+          completedSets,
+          unit,
+          toStandardKg,
+          todayDay.name
+        );
+      }
     }
   };
 
@@ -1652,6 +1717,20 @@ export default function WorkoutScreen() {
               await AsyncStorage.setItem('@fitnesspro_completed_sets', JSON.stringify(cSetsCopy));
 
               setOriginalExercises((prev) => prev.filter((_, idx) => idx !== exIdx));
+
+              // 4. Actualizar snapshot del día sin el ejercicio eliminado
+              if (todayDay && user?.id) {
+                await saveDayWorkoutSnapshot(
+                  user.id,
+                  todayDay.id,
+                  updated,
+                  cSetsCopy,
+                  unit,
+                  toStandardKg,
+                  todayDay.name
+                );
+              }
+
               loadTodayWorkout();
 
               Alert.alert(
@@ -1730,8 +1809,14 @@ export default function WorkoutScreen() {
   };
 
   // Callback cuando se actualiza una rutina existente
-  const handleRoutineUpdated = (updatedRoutine: Routine) => {
+  const handleRoutineUpdated = async (updatedRoutine: Routine) => {
     setActiveRoutine(updatedRoutine);
+    if (user?.id) {
+      const daysOfRoutine = routineDaysList.filter((d) => d.routine_id === updatedRoutine.id);
+      for (const d of daysOfRoutine) {
+        await clearDayWorkoutSnapshot(user.id, d.id);
+      }
+    }
     loadTodayWorkout();
   };
 
@@ -1816,6 +1901,48 @@ export default function WorkoutScreen() {
       };
     });
 
+    const snapshotExercises = workingExercises.map((rx, exIdx) => {
+      const exInfo = (rx as any).exercise || (rx as any).exercise_info || {};
+      const sets = rx.sets.map((s, sIdx) => {
+        const logged = completedSets[s.id];
+        let finalReps = s.target_reps;
+        let finalWeightKg = s.target_weight_kg || 0;
+
+        if (logged && logged.completed) {
+          finalReps = logged.reps;
+          finalWeightKg = toStandardKg(logged.weight, unit);
+        }
+
+        return {
+          id: `snap-${rx.exercise_id || rx.id}-${sIdx + 1}-${Date.now()}`,
+          routine_exercise_set_id: s.routine_exercise_set_id || null,
+          set_number: sIdx + 1,
+          target_reps: Math.max(1, finalReps),
+          target_weight_kg: Math.max(0, Math.round(finalWeightKg * 10) / 10),
+          target_rpe: s.target_rpe || null,
+          rest_seconds: s.rest_seconds || 90,
+          is_extra: s.is_extra || false,
+        };
+      });
+
+      return {
+        id: rx.id || `rx-snap-${exIdx}-${Date.now()}`,
+        exercise_id: rx.exercise_id || rx.id,
+        exercise: {
+          id: exInfo.id || rx.exercise_id || rx.id,
+          name: exInfo.name || 'Ejercicio',
+          muscle_group: exInfo.muscle_group || 'General',
+          image_urls: exInfo.image_urls || (exInfo.image_url ? [exInfo.image_url] : []),
+          gif_url: exInfo.gif_url || null,
+          is_custom: !!exInfo.is_custom,
+          created_by: exInfo.created_by || null,
+        },
+        notes: rx.notes || null,
+        order_index: exIdx,
+        sets,
+      };
+    });
+
     const finishPayload = {
       session_id: activeSession?.id,
       completed_at: finishDate,
@@ -1837,7 +1964,7 @@ export default function WorkoutScreen() {
         cardio_calories: stats.cardioKcal,
         volume_kg: stats.totalVolumeKg,
         exercises: exercisesSummary,
-        working_exercises_snapshot: workingExercises,
+        working_exercises_snapshot: snapshotExercises,
       }),
     };
 
@@ -1981,6 +2108,8 @@ export default function WorkoutScreen() {
     await AsyncStorage.removeItem('@fitnesspro_session_start_time');
     await AsyncStorage.removeItem('@fitnesspro_session_rest_seconds');
 
+    setCompletedSets({});
+    setActiveSession(null);
     setIsSessionActive(false);
     handleDismissRestTimer();
 
