@@ -428,19 +428,20 @@ export async function loadDayWorkoutSnapshot(
   if (!userId || !dayId) return null;
   const key = getDaySnapshotStorageKey(userId, dayId);
 
+  let localSnapshot: DayWorkoutSnapshot | null = null;
   try {
     const raw = await AsyncStorage.getItem(key);
     if (raw) {
       const parsed: DayWorkoutSnapshot = JSON.parse(raw);
       if (parsed && Array.isArray(parsed.exercises) && parsed.exercises.length > 0) {
-        return parsed;
+        localSnapshot = parsed;
       }
     }
   } catch (e) {
     console.warn('Error leyendo snapshot local:', e);
   }
 
-  // Respaldo remoto desde Supabase (última sesión completada en workout_sessions)
+  // Respaldo remoto prioritario desde Supabase (última sesión completada en workout_sessions)
   if (supabaseClient) {
     try {
       const { data: lastSession } = await supabaseClient
@@ -455,69 +456,80 @@ export async function loadDayWorkoutSnapshot(
 
       if (lastSession?.notes) {
         const sessionTimeStr = lastSession.completed_at || lastSession.created_at;
-        let parsed: any = null;
-        try {
-          parsed = typeof lastSession.notes === 'string' ? JSON.parse(lastSession.notes) : lastSession.notes;
-        } catch (parseErr) {
-          console.warn('Error al parsear notes de la última sesión:', parseErr);
-        }
+        const sessionTime = sessionTimeStr ? new Date(sessionTimeStr).getTime() : 0;
+        const localTime = localSnapshot?.lastUpdated ? new Date(localSnapshot.lastUpdated).getTime() : 0;
 
-        if (!parsed) return null;
+        // Si la sesión en Supabase es más reciente o igual que el snapshot local (o no hay snapshot local),
+        // reconstruimos el snapshot a partir de la sesión real ejecutada por el alumno
+        if (!localSnapshot || sessionTime >= localTime) {
+          let parsed: any = null;
+          try {
+            parsed = typeof lastSession.notes === 'string' ? JSON.parse(lastSession.notes) : lastSession.notes;
+          } catch (parseErr) {
+            console.warn('Error al parsear notes de la última sesión:', parseErr);
+          }
 
-        if (parsed.working_exercises_snapshot && Array.isArray(parsed.working_exercises_snapshot) && parsed.working_exercises_snapshot.length > 0) {
-          const snapshot: DayWorkoutSnapshot = {
-            userId,
-            dayId,
-            dayName: parsed.dayName,
-            lastUpdated: sessionTimeStr || new Date().toISOString(),
-            exercises: parsed.working_exercises_snapshot,
-          };
-          AsyncStorage.setItem(key, JSON.stringify(snapshot)).catch(() => {});
-          return snapshot;
-        }
+          if (parsed) {
+            if (parsed.working_exercises_snapshot && Array.isArray(parsed.working_exercises_snapshot) && parsed.working_exercises_snapshot.length > 0) {
+              const snapshot: DayWorkoutSnapshot = {
+                userId,
+                dayId,
+                dayName: parsed.dayName,
+                lastUpdated: sessionTimeStr || new Date().toISOString(),
+                exercises: parsed.working_exercises_snapshot,
+              };
+              AsyncStorage.setItem(key, JSON.stringify(snapshot)).catch(() => {});
+              return snapshot;
+            }
 
-        if (parsed.exercises && Array.isArray(parsed.exercises) && parsed.exercises.length > 0) {
-          const reconstructed: SavedDayExerciseItem[] = parsed.exercises.map((ex: any, idx: number) => ({
-            id: `snap-remote-${idx}-${Date.now()}`,
-            exercise_id: ex.exercise_id,
-            exercise: {
-              id: ex.exercise_id,
-              name: ex.name,
-              muscle_group: ex.muscle_group || 'General',
-              image_urls: ex.image_url ? [ex.image_url] : [],
-              gif_url: ex.image_url || null,
-            },
-            notes: null,
-            order_index: idx,
-            sets: (ex.sets || []).map((s: any, sIdx: number) => ({
-              id: `snap-remote-set-${sIdx}-${Date.now()}`,
-              routine_exercise_set_id: s.routine_exercise_set_id || null,
-              set_number: s.set_number || sIdx + 1,
-              target_reps: s.reps || s.target_reps || 10,
-              target_weight_kg: Math.max(0, Math.round((s.weight_kg ?? (s.weight || 0)) * 10) / 10),
-              target_rpe: s.rpe || null,
-              rest_seconds: s.rest_seconds || 90,
-              is_extra: s.is_extra || false,
-              is_superset: !!s.is_superset,
-              superset_count: s.superset_count || (s.superset_reps ? s.superset_reps.length : 1),
-              superset_reps: s.superset_reps || undefined,
-            })),
-          }));
+            if (parsed.exercises && Array.isArray(parsed.exercises) && parsed.exercises.length > 0) {
+              const reconstructed: SavedDayExerciseItem[] = parsed.exercises.map((ex: any, idx: number) => ({
+                id: `snap-remote-${idx}-${Date.now()}`,
+                exercise_id: ex.exercise_id,
+                exercise: {
+                  id: ex.exercise_id,
+                  name: ex.name,
+                  muscle_group: ex.muscle_group || 'General',
+                  image_urls: ex.image_url ? [ex.image_url] : [],
+                  gif_url: ex.image_url || null,
+                },
+                notes: null,
+                order_index: idx,
+                sets: (ex.sets || []).map((s: any, sIdx: number) => ({
+                  id: `snap-remote-set-${sIdx}-${Date.now()}`,
+                  routine_exercise_set_id: s.routine_exercise_set_id || null,
+                  set_number: s.set_number || sIdx + 1,
+                  target_reps: s.reps || s.target_reps || 10,
+                  target_weight_kg: Math.max(0, Math.round((s.weight_kg ?? (s.weight || 0)) * 10) / 10),
+                  target_rpe: s.rpe || null,
+                  rest_seconds: s.rest_seconds || 90,
+                  is_extra: s.is_extra || false,
+                  is_superset: !!s.is_superset,
+                  superset_count: s.superset_count || (s.superset_reps ? s.superset_reps.length : 1),
+                  superset_reps: s.superset_reps || undefined,
+                })),
+              }));
 
-          const snapshot: DayWorkoutSnapshot = {
-            userId,
-            dayId,
-            dayName: parsed.dayName,
-            lastUpdated: sessionTimeStr || new Date().toISOString(),
-            exercises: reconstructed,
-          };
-          AsyncStorage.setItem(key, JSON.stringify(snapshot)).catch(() => {});
-          return snapshot;
+              const snapshot: DayWorkoutSnapshot = {
+                userId,
+                dayId,
+                dayName: parsed.dayName,
+                lastUpdated: sessionTimeStr || new Date().toISOString(),
+                exercises: reconstructed,
+              };
+              AsyncStorage.setItem(key, JSON.stringify(snapshot)).catch(() => {});
+              return snapshot;
+            }
+          }
         }
       }
     } catch (remoteErr) {
       console.warn('Error recuperando snapshot remoto de Supabase:', remoteErr);
     }
+  }
+
+  if (localSnapshot) {
+    return localSnapshot;
   }
 
   return null;
@@ -596,6 +608,11 @@ export async function syncRoutineExercisesToSupabase(
       let rxId: string | null = null;
       if (wx.id && uuidRegex.test(wx.id) && existingIds.has(wx.id)) {
         rxId = wx.id;
+      } else {
+        const matchByExId = existingList.find((r: any) => r.exercise_id === exId && !keptRxIds.has(r.id));
+        if (matchByExId) {
+          rxId = matchByExId.id;
+        }
       }
 
       // Preparar metadatos de superset en el campo notes
@@ -672,6 +689,11 @@ export async function syncRoutineExercisesToSupabase(
           setId = s.routine_exercise_set_id;
         } else if (s.id && uuidRegex.test(s.id) && existingSetIds.has(s.id)) {
           setId = s.id;
+        } else {
+          const matchSet = existingSetList.find((es: any) => !keptSetIds.has(es.id));
+          if (matchSet) {
+            setId = matchSet.id;
+          }
         }
 
         const setPayload = {
@@ -728,6 +750,12 @@ export async function syncRoutineExercisesToSupabase(
         .delete()
         .in('id', rxToDelete);
     }
+
+    // 6. Actualizar timestamp de routine_days para invalidar cachés remotas
+    await supabaseClient
+      .from('routine_days')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', dayId);
 
     return true;
   } catch (err) {
