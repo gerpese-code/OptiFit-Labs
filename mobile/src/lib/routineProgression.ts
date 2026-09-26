@@ -444,6 +444,16 @@ export async function loadDayWorkoutSnapshot(
     console.warn('Error leyendo snapshot local:', e);
   }
 
+  // Si el coach modificó la rutina o día en el panel de administración, comparar marcas de tiempo
+  if (routineUpdatedAt && localSnapshot?.lastUpdated) {
+    const routineTime = new Date(routineUpdatedAt).getTime();
+    const localTime = new Date(localSnapshot.lastUpdated).getTime();
+    if (routineTime > localTime) {
+      console.log('[Progression] La rutina/día fue actualizada por el coach con posterioridad al snapshot local. Se invalidará para tomar la nueva versión del coach.');
+      localSnapshot = null;
+    }
+  }
+
   // Respaldo remoto prioritario desde Supabase (última sesión completada en workout_sessions)
   if (supabaseClient) {
     try {
@@ -461,6 +471,16 @@ export async function loadDayWorkoutSnapshot(
         const sessionTimeStr = lastSession.completed_at || lastSession.created_at;
         const sessionTime = sessionTimeStr ? new Date(sessionTimeStr).getTime() : 0;
         const localTime = localSnapshot?.lastUpdated ? new Date(localSnapshot.lastUpdated).getTime() : 0;
+
+        // Si el coach actualizó la rutina después de la última sesión realizada,
+        // no rehidratar la sesión anterior ya que el coach asignó una nueva planificación
+        if (routineUpdatedAt) {
+          const routineTime = new Date(routineUpdatedAt).getTime();
+          if (routineTime > sessionTime) {
+            console.log('[Progression] La rutina fue modificada por el coach después de la última sesión del alumno. Se carga la rutina actualizada del coach.');
+            return null;
+          }
+        }
 
         // Si la sesión en Supabase es más reciente o igual que el snapshot local (o no hay snapshot local),
         // reconstruimos el snapshot a partir de la sesión real ejecutada por el alumno

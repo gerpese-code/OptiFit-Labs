@@ -588,7 +588,8 @@ export default function WorkoutScreen() {
     setOriginalExercises(mapped);
 
     // 1. Cargar snapshot de la última rutina realizada si el alumno personalizó ejercicios/series
-    const snapshot = await loadDayWorkoutSnapshot(user?.id || 'guest', selectedDay.id, supabase, null);
+    const routineTime = (selectedDay as any)?.updated_at || (activeRoutine as any)?.updated_at || null;
+    const snapshot = await loadDayWorkoutSnapshot(user?.id || 'guest', selectedDay.id, supabase, routineTime);
 
     if (snapshot && snapshot.exercises && snapshot.exercises.length > 0) {
       const workingFromSnapshot: WorkingExerciseItem[] = snapshot.exercises.map((sx, idx) => ({
