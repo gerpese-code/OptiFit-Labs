@@ -48,6 +48,8 @@ export default function InteractiveSetRow({
   // Valores reales que el alumno puede modificar libremente
   const [actualReps, setActualReps] = useState(set.target_reps.toString());
   const [actualWeight, setActualWeight] = useState(targetWeightInUnit.toString());
+  const [isRepsFocused, setIsRepsFocused] = useState(false);
+  const [isWeightFocused, setIsWeightFocused] = useState(false);
   const prevUnitRef = useRef(unit);
 
   // Estado de Superserie
@@ -155,7 +157,13 @@ export default function InteractiveSetRow({
 
   // Limpieza automática al hacer foco para rellenar de inmediato sin tener que borrar
   const handleRepsFocus = () => {
+    setIsRepsFocused(true);
     setActualReps('');
+  };
+
+  const handleRepsBlur = () => {
+    setIsRepsFocused(false);
+    handleRepsEndEditing();
   };
 
   const handleRepsEndEditing = () => {
@@ -174,7 +182,13 @@ export default function InteractiveSetRow({
   };
 
   const handleWeightFocus = () => {
+    setIsWeightFocused(true);
     setActualWeight('');
+  };
+
+  const handleWeightBlur = () => {
+    setIsWeightFocused(false);
+    handleWeightEndEditing();
   };
 
   const handleWeightEndEditing = () => {
@@ -467,19 +481,24 @@ export default function InteractiveSetRow({
         <View style={styles.inputsRow}>
           {/* Recuadro Grande de Repeticiones */}
           <View style={styles.inputBox}>
-            <Text style={styles.inputLabel}>{t('workout.reps_label', 'REPS')}</Text>
+            <Text style={[styles.inputLabel, isRepsFocused && styles.inputLabelFocused]}>
+              {t('workout.reps_label', 'REPS')}
+            </Text>
             <TextInput
               style={[
                 styles.largeInput,
                 styles.repsInput,
+                isRepsFocused && styles.inputFocused,
                 isCompleted && styles.inputCompleted,
                 isSuperset && styles.inputSupersetActive,
               ]}
               keyboardType="number-pad"
               value={actualReps}
               onFocus={handleRepsFocus}
+              onBlur={handleRepsBlur}
               onChangeText={handleRepsChange}
               onEndEditing={handleRepsEndEditing}
+              selectTextOnFocus={true}
               placeholder={set.target_reps ? set.target_reps.toString() : '0'}
               placeholderTextColor="#475569"
             />
@@ -487,20 +506,23 @@ export default function InteractiveSetRow({
 
           {/* Recuadro Grande de Peso */}
           <View style={styles.inputBox}>
-            <Text style={styles.inputLabel}>
+            <Text style={[styles.inputLabel, isWeightFocused && styles.inputLabelFocused]}>
               {t('workout.weight_label', 'PESO ({unit})').replace('{unit}', unit.toUpperCase())}
             </Text>
             <TextInput
               style={[
                 styles.largeInput,
                 styles.weightInput,
+                isWeightFocused && styles.inputFocused,
                 isCompleted && styles.inputCompleted,
               ]}
               keyboardType="number-pad"
               value={actualWeight}
               onFocus={handleWeightFocus}
+              onBlur={handleWeightBlur}
               onChangeText={handleWeightChange}
               onEndEditing={handleWeightEndEditing}
+              selectTextOnFocus={true}
               placeholder={targetWeightInUnit ? targetWeightInUnit.toString() : '0'}
               placeholderTextColor="#475569"
             />
@@ -749,16 +771,28 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     letterSpacing: 0.8,
   },
+  inputLabelFocused: {
+    color: '#34d399',
+  },
   largeInput: {
     height: 52,
     backgroundColor: '#020617',
-    borderRadius: 12,
+    borderRadius: 13,
     borderWidth: 2,
     borderColor: '#334155',
     color: '#ffffff',
-    fontSize: 20,
+    fontSize: 21,
     fontWeight: '900',
     textAlign: 'center',
+  },
+  inputFocused: {
+    borderColor: '#10b981',
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    elevation: 6,
   },
   repsInput: {
     width: 80,
@@ -775,16 +809,16 @@ const styles = StyleSheet.create({
     color: '#fbbf24',
   },
   actionsCol: {
-    width: 44,
+    width: 48,
     alignItems: 'center',
     gap: 4,
   },
   checkBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     backgroundColor: '#1e293b',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#334155',
     alignItems: 'center',
     justifyContent: 'center',
