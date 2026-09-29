@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Profile, WorkoutSession } from '@/types/database';
 import { useUnit } from '@/context/UnitContext';
-import { getClientActivityInfo, ClientActivityInfo } from '@/lib/utils/activity';
+import { getClientActivityInfo, ClientActivityInfo, isRecentActiveWorkout } from '@/lib/utils/activity';
 import Link from 'next/link';
 import {
   Users,
@@ -31,46 +31,60 @@ export default function AdminDashboardPage() {
   const [routinesCount, setRoutinesCount] = useState(0);
   const [todaySessions, setTodaySessions] = useState<WorkoutSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [realtimeOnlineIds, setRealtimeOnlineIds] = useState<Set<string>>(new Set());
+  const [realtimeTrainingIds, setRealtimeTrainingIds] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    const loadOverviewData = async () => {
-      setLoading(true);
-      try {
-        // 1. Clientes
-        const { data: clientsData } = await supabase
-          .from('profiles')
-          .select('*')
-          .neq('id', '1e838c07-f020-4694-b0f7-b4d44bb0b61a') // Excluir bot/cuenta técnica admin@optifitlabs.com
-          .is('deleted_at', null)
-          .order('created_at', { ascending: false });
+  const loadOverviewData = useCallback(async () => {
+    setLoading(true);
+    try {
+      // 1. Clientes
+      const { data: clientsData } = await supabase
+        .from('profiles')
+        .select('*')
+        .neq('id', '1e838c07-f020-4694-b0f7-b4d44bb0b61a') // Excluir bot/cuenta técnica admin@optifitlabs.com
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
 
-        const rawClients: Profile[] = clientsData || [];
+      const rawClients: Profile[] = clientsData || [];
 
-        // 2. Sesiones para calcular última actividad
-        const { data: sessionsDataAll } = await supabase
-          .from('workout_sessions')
-          .select('*')
-          .order('created_at', { ascending: false });
+      // 2. Sesiones para calcular última actividad
+      const { data: sessionsDataAll } = await supabase
+        .from('workout_sessions')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-        const allSessions: WorkoutSession[] = sessionsDataAll || [];
+      const allSessions: WorkoutSession[] = sessionsDataAll || [];
 
-        const enrichedClients: ClientWithActivity[] = rawClients.map((client) => {
-          const clientSession = allSessions.find((s) => s.client_id === client.id) || null;
-          const activityInfo = getClientActivityInfo(client, clientSession);
-          return {
-            ...client,
-            activityInfo,
-          };
+      const enrichedClients: ClientWithActivity[] = rawClients.map((client) => {
+        const clientSessions = allSessions.filter((s) => s.client_id === client.id);
+        const activeSession = clientSessions.find((s) => isRecentActiveWorkout(s)) || null;
+        const completedSessions = clientSessions.filter((s) => s.completed_at || s.status === 'completed');
+        const latestCompletedSession = completedSessions.length > 0 ? completedSessions[0] : null;
+
+        const isRealtimeOnline = realtimeOnlineIds.has(client.id);
+        const isRealtimeTraining = realtimeTrainingIds.has(client.id);
+
+        const activityInfo = getClientActivityInfo(client, {
+          activeSession,
+          latestCompletedSession,
+          isRealtimeOnline,
+          isRealtimeTraining,
         });
 
-        // Ordenar primero alumnos en línea / activos hoy
-        enrichedClients.sort((a, b) => {
-          if (a.activityInfo.isOnline && !b.activityInfo.isOnline) return -1;
-          if (!a.activityInfo.isOnline && b.activityInfo.isOnline) return 1;
-          return new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime();
-        });
+        return {
+          ...client,
+          activityInfo,
+        };
+      });
 
-        setClients(enrichedClients);
+      // Ordenar primero alumnos en línea / entrenando
+      enrichedClients.sort((a, b) => {
+        if (a.activityInfo.isOnline && !b.activityInfo.isOnline) return -1;
+        if (!a.activityInfo.isOnline && b.activityInfo.isOnline) return 1;
+        return new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime();
+      });
+
+      setClients(enrichedClients);
 
         // 3. Conteo de ejercicios
         const { count: exCount } = await supabase
@@ -99,10 +113,80 @@ export default function AdminDashboardPage() {
       } finally {
         setLoading(false);
       }
-    };
+    },
+    [supabase, realtimeOnlineIds, realtimeTrainingIds]
+  );
 
+  useEffect(() => {
     loadOverviewData();
+  }, [loadOverviewData]);
+
+  // Suscripción Realtime para detectar cuando un alumno abre/cierra la pantalla o inicia sesión
+  useEffect(() => {
+    const presenceChannel = supabase.channel('online-presence');
+
+    presenceChannel
+      .on('presence', { event: 'sync' }, () => {
+        const state = presenceChannel.presenceState();
+        const onlineSet = new Set<string>();
+        const trainingSet = new Set<string>();
+
+        Object.values(state).forEach((presences: any) => {
+          presences.forEach((p: any) => {
+            if (p.client_id && p.screen_open) {
+              onlineSet.add(p.client_id);
+              if (p.is_training) {
+                trainingSet.add(p.client_id);
+              }
+            }
+          });
+        });
+
+        setRealtimeOnlineIds(onlineSet);
+        setRealtimeTrainingIds(trainingSet);
+      })
+      .subscribe();
+
+    const sessionsChannel = supabase
+      .channel('admin-dashboard-sessions-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'workout_sessions' },
+        () => {
+          loadOverviewData();
+        }
+      )
+      .subscribe();
+
+    const interval = setInterval(() => {
+      loadOverviewData();
+    }, 30000);
+
+    return () => {
+      supabase.removeChannel(presenceChannel);
+      supabase.removeChannel(sessionsChannel);
+      clearInterval(interval);
+    };
   }, []);
+
+  // Actualizar reactivamente la actividad en pantalla al cambiar la presencia
+  useEffect(() => {
+    setClients((prevClients) =>
+      prevClients.map((c) => {
+        const isOnline = realtimeOnlineIds.has(c.id);
+        const isTraining = realtimeTrainingIds.has(c.id);
+        const newActivityInfo = getClientActivityInfo(c, {
+          isRealtimeOnline: isOnline,
+          isRealtimeTraining: isTraining,
+        });
+
+        return {
+          ...c,
+          activityInfo: newActivityInfo,
+        };
+      })
+    );
+  }, [realtimeOnlineIds, realtimeTrainingIds]);
 
   return (
     <div className="space-y-8 pb-12">

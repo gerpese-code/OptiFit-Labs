@@ -37,7 +37,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import Link from 'next/link';
-import { getClientActivityInfo } from '@/lib/utils/activity';
+import { getClientActivityInfo, isRecentActiveWorkout } from '@/lib/utils/activity';
 import { getClientCode, formatClientBadge } from '@/lib/utils/clientCode';
 import { STANDARD_MUSCLE_GROUPS } from '@/lib/constants/muscleGroups';
 import ClientRoutineModal from '@/components/clients/ClientRoutineModal';
@@ -78,6 +78,8 @@ export default function ClientDetailPage() {
   const [isRoutineModalOpen, setIsRoutineModalOpen] = useState(false);
   const [clientCode, setClientCode] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [isRealtimeOnline, setIsRealtimeOnline] = useState(false);
+  const [isRealtimeTraining, setIsRealtimeTraining] = useState(false);
 
   const [exerciseDetailsMap, setExerciseDetailsMap] = useState<
     Record<string, { name: string; muscleGroup: string; imgUrl: string | null }>
@@ -316,6 +318,53 @@ export default function ClientDetailPage() {
     loadClientData();
   }, [loadClientData]);
 
+  // Suscripción Realtime para detectar si este alumno tiene la app abierta o está en una sesión activa
+  useEffect(() => {
+    if (!clientId) return;
+    const presenceChannel = supabase.channel('online-presence');
+
+    presenceChannel
+      .on('presence', { event: 'sync' }, () => {
+        const state = presenceChannel.presenceState();
+        let foundOnline = false;
+        let foundTraining = false;
+
+        Object.values(state).forEach((presences: any) => {
+          presences.forEach((p: any) => {
+            if (p.client_id === clientId && p.screen_open) {
+              foundOnline = true;
+              if (p.is_training) foundTraining = true;
+            }
+          });
+        });
+
+        setIsRealtimeOnline(foundOnline);
+        setIsRealtimeTraining(foundTraining);
+      })
+      .subscribe();
+
+    const sessionsChannel = supabase
+      .channel(`client-detail-sessions-${clientId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'workout_sessions', filter: `client_id=eq.${clientId}` },
+        () => {
+          loadClientData();
+        }
+      )
+      .subscribe();
+
+    const interval = setInterval(() => {
+      loadClientData();
+    }, 30000);
+
+    return () => {
+      supabase.removeChannel(presenceChannel);
+      supabase.removeChannel(sessionsChannel);
+      clearInterval(interval);
+    };
+  }, [clientId, loadClientData, supabase]);
+
   // Cálculo dinámico del rango de fechas activo según el preset o fechas personalizadas
   const activeDateRange = React.useMemo(() => {
     const today = new Date();
@@ -456,7 +505,18 @@ export default function ClientDetailPage() {
     );
   }
 
-  const activityInfo = client ? getClientActivityInfo(client, sessions.length > 0 ? sessions[sessions.length - 1] : null) : null;
+  const activeSession = sessions.find((s) => isRecentActiveWorkout(s)) || null;
+  const completedSessions = sessions.filter((s) => s.completed_at || s.status === 'completed');
+  const latestCompletedSession = completedSessions.length > 0 ? completedSessions[completedSessions.length - 1] : null;
+
+  const activityInfo = client
+    ? getClientActivityInfo(client, {
+        activeSession,
+        latestCompletedSession,
+        isRealtimeOnline,
+        isRealtimeTraining,
+      })
+    : null;
 
   return (
     <div className="space-y-6 pb-16">

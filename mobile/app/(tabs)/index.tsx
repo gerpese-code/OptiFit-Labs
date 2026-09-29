@@ -118,7 +118,7 @@ import {
   CardioActivityItem,
   DEFAULT_BIOMETRICS,
 } from '@/lib/calorieCalculator';
-import { touchUserActivity } from '@/lib/activityTracker';
+import { touchUserActivity, notifySessionStatus } from '@/lib/activityTracker';
 
 
 interface WorkingExerciseItem {
@@ -422,6 +422,13 @@ export default function WorkoutScreen() {
     });
     return () => subscription.remove();
   }, [isSessionActive, activeSession, completedSets, cardioActivities, elapsedSeconds]);
+
+  // Notificar estado de sesión activa ("en medio de una sesión") al monitor de presencia
+  useEffect(() => {
+    if (user?.id) {
+      notifySessionStatus(user.id, isSessionActive);
+    }
+  }, [isSessionActive, user?.id]);
 
   // Rutina de demostración y contingencia completa para garantizar entrenamiento inmediato
   const DEFAULT_PRO_ROUTINE: Routine = {

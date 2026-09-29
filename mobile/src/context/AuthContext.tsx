@@ -3,16 +3,18 @@ import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { Profile } from '@/types/database';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { touchUserActivity } from '@/lib/activityTracker';
+import { touchUserActivity, startPresenceTracker } from '@/lib/activityTracker';
 import { getStoredBiometrics, saveStoredBiometrics } from '@/lib/calorieCalculator';
 import { calculateAgeFromBirthDate } from '@/lib/birthDateUtils';
+
+const SESSION_STORAGE_KEY = '@fitnesspro_active_session';
 
 interface AuthContextType {
   session: Session | null;
   user: User | null;
   profile: Profile | null;
   loading: boolean;
-  signIn: (email: string, pass: string) => Promise<{ data: any; error: Error | null }>;
+  signIn: (emailOrUser: string, pass: string) => Promise<{ data: any; error: Error | null }>;
   signUp: (email: string, pass: string, fullName: string, birthDate?: string) => Promise<{ data: any; error: Error | null }>;
   signOut: () => Promise<void>;
   deleteAccount: () => Promise<{ error: Error | null }>;
@@ -20,6 +22,44 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Directorio inteligente de resolución de usuario / código a correo oficial
+const KNOWN_USER_MAP: Record<string, string> = {
+  carlos: 'carlos83quiroztulum@gmail.com',
+  carlos83: 'carlos83quiroztulum@gmail.com',
+  carlos83quiroztulum: 'carlos83quiroztulum@gmail.com',
+  sylvia: 'sylviazekrynakhla@gmail.com',
+  sylviazekrynakhla: 'sylviazekrynakhla@gmail.com',
+  victoria: 'sharryvictoria@gmail.com',
+  sharry: 'sharryvictoria@gmail.com',
+  sharryvictoria: 'sharryvictoria@gmail.com',
+  fer: 'csj.feravila@gmail.com',
+  flores: 'csj.feravila@gmail.com',
+  ferflores: 'csj.feravila@gmail.com',
+  feravila: 'csj.feravila@gmail.com',
+  german: 'pesedagger@gmail.com',
+  pesedagger: 'pesedagger@gmail.com',
+  hgd563: 'pesedagger@gmail.com',
+  admin: 'admin@optifitlabs.com',
+};
+
+function resolveEmailFromInput(input: string): string {
+  const clean = input.trim().toLowerCase();
+  if (clean.includes('@')) {
+    return clean;
+  }
+  // Buscar coincidencia exacta o por inicio en el directorio
+  if (KNOWN_USER_MAP[clean]) {
+    return KNOWN_USER_MAP[clean];
+  }
+  // Coincidencia parcial si el usuario escribió solo el primer nombre
+  for (const [key, email] of Object.entries(KNOWN_USER_MAP)) {
+    if (clean.startsWith(key) || key.startsWith(clean)) {
+      return email;
+    }
+  }
+  return clean;
+}
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
@@ -117,43 +157,88 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    // 1. Cargar sesión inicial y refrescar metadatos desde el servidor
-    supabase.auth.getSession().then(async ({ data: { session: initSession } }) => {
-      setSession(initSession);
-      setUser(initSession?.user ?? null);
-      if (initSession?.user) {
-        fetchProfile(initSession.user.id, initSession.user.user_metadata);
-        try {
-          const { data: freshData } = await supabase.auth.getUser();
-          if (freshData?.user) {
-            setUser(freshData.user);
-            fetchProfile(freshData.user.id, freshData.user.user_metadata);
+    let isMounted = true;
+
+    // 1. Restauración inmediata desde almacenamiento local persistente
+    const initAuth = async () => {
+      try {
+        const savedSession = await AsyncStorage.getItem(SESSION_STORAGE_KEY);
+        if (savedSession && isMounted) {
+          const parsed = JSON.parse(savedSession);
+          if (parsed?.user) {
+            setSession(parsed);
+            setUser(parsed.user);
+            fetchProfile(parsed.user.id, parsed.user.user_metadata);
           }
-        } catch {
-          // Si está sin conexión, continuar con la sesión local
+        }
+      } catch (storageErr) {
+        console.warn('Error leyendo sesión persistente de AsyncStorage:', storageErr);
+      }
+
+      // Validar y refrescar con Supabase Auth
+      try {
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        if (isMounted) {
+          if (currentSession) {
+            setSession(currentSession);
+            setUser(currentSession.user);
+            await AsyncStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(currentSession));
+            fetchProfile(currentSession.user.id, currentSession.user.user_metadata);
+          }
+        }
+      } catch (authErr) {
+        console.warn('Operando en modo sin conexión para sesión de usuario:', authErr);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
         }
       }
-      setLoading(false);
-    });
+    };
 
-    // 2. Suscribirse a cambios de auth
+    initAuth();
+
+    // 2. Suscripción a cambios de autenticación
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
-      setSession(currentSession);
-      setUser(currentSession?.user ?? null);
-      if (currentSession?.user) {
-        await fetchProfile(currentSession.user.id, currentSession.user.user_metadata);
-      } else {
+    } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      if (!isMounted) return;
+
+      if (event === 'SIGNED_OUT') {
+        // Cierre de sesión explícito: limpiar estado y almacenamiento
+        setSession(null);
+        setUser(null);
         setProfile(null);
+        await AsyncStorage.removeItem(SESSION_STORAGE_KEY).catch(() => {});
+        setLoading(false);
+      } else if (currentSession) {
+        // Nueva sesión o token refrescado con éxito
+        setSession(currentSession);
+        setUser(currentSession.user);
+        await AsyncStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(currentSession)).catch(() => {});
+        if (currentSession.user) {
+          fetchProfile(currentSession.user.id, currentSession.user.user_metadata);
+        }
+        setLoading(false);
+      } else if (event === 'TOKEN_REFRESHED' && !currentSession) {
+        // Fallo temporal de red durante refresco de token: NO cerrar sesión del alumno
+        console.warn('Fallo transitorio al refrescar token; se conserva la sesión local.');
       }
-      setLoading(false);
     });
 
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
     };
   }, []);
+
+  // Rastreo de presencia activa: el alumno figura en línea únicamente mientras tenga la pantalla abierta
+  useEffect(() => {
+    if (!user?.id) return;
+    const cleanup = startPresenceTracker(user.id);
+    return () => {
+      cleanup();
+    };
+  }, [user?.id]);
 
   const refreshProfile = async () => {
     try {
@@ -170,19 +255,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signIn = async (email: string, pass: string) => {
-    setLoading(true);
+  const signIn = async (emailOrUser: string, pass: string) => {
+    // NOTA: NO cambiamos loading a true aquí para evitar desmontar la pantalla de Login
     try {
+      const targetEmail = resolveEmailFromInput(emailOrUser);
+
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: targetEmail,
         password: pass,
       });
 
-      if (error) throw error;
+      if (error) {
+        // Si el usuario intentó con un username que no tenía @ y falló, intentar fallback
+        if (!emailOrUser.includes('@') && targetEmail === emailOrUser.trim().toLowerCase()) {
+          const fallbackEmail = `${emailOrUser.trim().toLowerCase()}@gmail.com`;
+          const fallbackRes = await supabase.auth.signInWithPassword({
+            email: fallbackEmail,
+            password: pass,
+          });
+          if (fallbackRes.data?.session) {
+            const sess = fallbackRes.data.session;
+            setSession(sess);
+            setUser(fallbackRes.data.user);
+            await AsyncStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sess));
+            if (fallbackRes.data.user) {
+              await fetchProfile(fallbackRes.data.user.id, fallbackRes.data.user.user_metadata);
+            }
+            return { data: fallbackRes.data, error: null };
+          }
+        }
+        throw error;
+      }
 
       if (data.session) {
         setSession(data.session);
         setUser(data.user);
+        await AsyncStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(data.session));
         if (data.user) {
           await fetchProfile(data.user.id, data.user.user_metadata);
         }
@@ -191,16 +299,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { data, error: null };
     } catch (err: any) {
       return { data: null, error: err };
-    } finally {
-      setLoading(false);
     }
   };
 
   const signUp = async (email: string, pass: string, fullName: string, birthDate?: string) => {
-    setLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password: pass,
         options: {
           data: {
@@ -215,6 +320,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (data.session) {
         setSession(data.session);
         setUser(data.user);
+        await AsyncStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(data.session));
         if (data.user) {
           await fetchProfile(data.user.id, data.user.user_metadata);
         }
@@ -223,31 +329,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { data, error: null };
     } catch (err: any) {
       return { data: null, error: err };
-    } finally {
-      setLoading(false);
     }
   };
 
   const signOut = async () => {
-    setLoading(true);
     try {
-      await supabase.auth.signOut();
-      await AsyncStorage.clear();
+      await supabase.auth.signOut().catch(() => {});
+      await AsyncStorage.removeItem(SESSION_STORAGE_KEY).catch(() => {});
       setSession(null);
       setUser(null);
       setProfile(null);
     } catch (err) {
       console.error('Error al cerrar sesión:', err);
-    } finally {
-      setLoading(false);
     }
   };
 
   const deleteAccount = async (): Promise<{ error: Error | null }> => {
     if (!user) return { error: new Error('No hay usuario autenticado') };
-    setLoading(true);
     try {
-      // 1. Apple Guideline 5.1.1(v): Intento de borrado permanente vía RPC
+      // 1. Apple Guideline 5.1.1(v): Intento de borrado vía RPC
       try {
         await supabase.rpc('delete_own_user_account');
       } catch (rpcErr) {
@@ -265,8 +365,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err: any) {
       console.error('Error al eliminar cuenta:', err);
       return { error: err };
-    } finally {
-      setLoading(false);
     }
   };
 

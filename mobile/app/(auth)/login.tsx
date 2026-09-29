@@ -20,10 +20,11 @@ import { supabase } from '@/lib/supabase';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { signIn, loading } = useAuth();
+  const { signIn } = useAuth();
   const { language, setLanguage, t } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [unconfirmedEmail, setUnconfirmedEmail] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
@@ -50,27 +51,44 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
-      setErrorMsg(t('auth.fill_all_fields', 'Por favor ingresa tu correo y contraseña.'));
+      setErrorMsg(t('auth.fill_all_fields', 'Por favor ingresa tu correo/usuario y contraseña.'));
       return;
     }
 
     setErrorMsg(null);
     setUnconfirmedEmail(null);
+    setSubmitting(true);
 
-    const { data, error } = await signIn(email, password);
+    try {
+      const { data, error } = await signIn(email, password);
 
-    if (error) {
-      let friendlyError = error.message;
-      if (error.message.includes('Invalid login credentials')) {
-        friendlyError = language === 'en' ? 'Invalid email or password. Please check your credentials.' : 'Correo o contraseña incorrectos. Verifica tus datos.';
-      } else if (error.message.includes('Email not confirmed')) {
-        setUnconfirmedEmail(email.trim());
-        friendlyError = language === 'en' ? 'You must confirm your email before signing in.' : 'Debes confirmar tu correo electrónico antes de ingresar.';
+      if (error) {
+        let friendlyError = error.message;
+        if (error.message.includes('Invalid login credentials')) {
+          friendlyError =
+            language === 'en'
+              ? 'Invalid username/email or password. Please verify your credentials or type your full email.'
+              : 'Correo/usuario o contraseña incorrectos. Verifica tus datos o ingresa tu correo completo (ej. alumno@gmail.com).';
+        } else if (error.message.includes('Email not confirmed')) {
+          setUnconfirmedEmail(email.trim());
+          friendlyError =
+            language === 'en'
+              ? 'You must confirm your email before signing in.'
+              : 'Debes confirmar tu correo electrónico antes de ingresar.';
+        } else if (error.message.includes('Failed to fetch') || error.message.includes('Network request failed')) {
+          friendlyError =
+            language === 'en'
+              ? 'Network connection issue. Please check your internet.'
+              : 'Problema de conexión. Verifica tu internet e intenta nuevamente.';
+        }
+        setErrorMsg(friendlyError);
+      } else if (data?.session) {
+        router.replace('/(tabs)');
       }
-      setErrorMsg(friendlyError);
-    } else if (data?.session) {
-      // Redirigir directamente al panel de alumno
-      router.replace('/(tabs)');
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Error al iniciar sesión.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -156,21 +174,29 @@ export default function LoginScreen() {
             </View>
           )}
 
-          {/* Email Input */}
+          {/* Email / Username Input */}
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>{language === 'en' ? 'EMAIL / USUARIO (EMAIL / USER)' : 'CORREO / USUARIO (EMAIL / USER)'}</Text>
+            <Text style={styles.inputLabel}>
+              {language === 'en' ? 'EMAIL OR USERNAME' : 'CORREO ELECTRÓNICO O USUARIO'}
+            </Text>
             <View style={styles.inputContainer}>
               <Mail size={18} color="#64748b" style={styles.inputIcon} />
               <TextInput
                 style={styles.textInput}
-                placeholder={t('auth.email_placeholder', 'alumno@ejemplo.com')}
+                placeholder={language === 'en' ? 'carlos or student@example.com' : 'carlos o alumno@ejemplo.com'}
                 placeholderTextColor="#475569"
                 keyboardType="email-address"
                 autoCapitalize="none"
+                autoCorrect={false}
                 value={email}
                 onChangeText={setEmail}
               />
             </View>
+            <Text style={{ fontSize: 11, color: '#64748b', marginTop: 4, marginLeft: 2 }}>
+              {language === 'en'
+                ? '💡 You can enter your email (e.g. carlos83quiroztulum@gmail.com) or username (e.g. Carlos)'
+                : '💡 Puedes ingresar tu correo completo o tu nombre de usuario (ej. Carlos)'}
+            </Text>
           </View>
 
           {/* Password Input */}
@@ -193,10 +219,10 @@ export default function LoginScreen() {
           <TouchableOpacity
             style={styles.submitBtn}
             onPress={handleLogin}
-            disabled={loading}
+            disabled={submitting}
             activeOpacity={0.8}
           >
-            {loading ? (
+            {submitting ? (
               <ActivityIndicator color="#ffffff" />
             ) : (
               <Text style={styles.submitBtnText}>{language === 'en' ? 'Sign In / Iniciar Sesión' : 'Iniciar Sesión / Sign In'}</Text>

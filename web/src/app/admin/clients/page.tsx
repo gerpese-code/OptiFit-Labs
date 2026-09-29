@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Profile, WorkoutSession, Routine } from '@/types/database';
-import { getClientActivityInfo, ClientActivityInfo } from '@/lib/utils/activity';
+import { getClientActivityInfo, ClientActivityInfo, isRecentActiveWorkout } from '@/lib/utils/activity';
 import Link from 'next/link';
 import {
   Users,
@@ -78,6 +78,8 @@ export default function AdminClientsDirectoryPage() {
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'online' | 'today' | 'inactive' | 'birthdays'>('all');
+  const [realtimeOnlineIds, setRealtimeOnlineIds] = useState<Set<string>>(new Set());
+  const [realtimeTrainingIds, setRealtimeTrainingIds] = useState<Set<string>>(new Set());
 
   // Modal Crear Alumno
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -316,7 +318,17 @@ export default function AdminClientsDirectoryPage() {
       // Enriquecer cada alumno con su actividad, última sesión, código único de 3 letras + 3 números, correo y rutinas
       const enriched: EnrichedClient[] = profiles.map((client, idx) => {
         const clientSessions = allSessions.filter((s) => s.client_id === client.id);
-        const latestSession = clientSessions.length > 0 ? clientSessions[0] : null;
+        
+        // Sesión activa ("en medio de una sesión"): no completada, estado partial y reciente
+        const activeSession = clientSessions.find((s) => isRecentActiveWorkout(s)) || null;
+
+        // Última sesión completada (para fecha histórica cuando no está en línea)
+        const completedSessions = clientSessions.filter((s) => s.completed_at || s.status === 'completed');
+        const latestCompletedSession = completedSessions.length > 0 ? completedSessions[0] : null;
+
+        const isRealtimeOnline = realtimeOnlineIds.has(client.id);
+        const isRealtimeTraining = realtimeTrainingIds.has(client.id);
+
         const clientRoutines: EnrichedClientRoutine[] = allRoutines
           .filter((r) => r.client_id === client.id)
           .map((r) => ({
@@ -326,7 +338,13 @@ export default function AdminClientsDirectoryPage() {
           }));
         const primaryRoutine = clientRoutines.find((r) => r.isActive) || clientRoutines[0];
 
-        const activityInfo = getClientActivityInfo(client, latestSession);
+        const activityInfo = getClientActivityInfo(client, {
+          activeSession,
+          latestCompletedSession,
+          isRealtimeOnline,
+          isRealtimeTraining,
+        });
+
         const code = clientCodesMap[client.id] || getClientCode(client, idx);
         const userEmail = clientEmailsMap[client.id] || null;
         const avatarUrl = clientAvatarsMap[client.id] || null;
@@ -336,16 +354,16 @@ export default function AdminClientsDirectoryPage() {
           email: userEmail,
           avatarUrl,
           activityInfo,
-          latestSession,
+          latestSession: activeSession || latestCompletedSession || (clientSessions.length > 0 ? clientSessions[0] : null),
           assignedRoutineId: primaryRoutine?.id || null,
           assignedRoutineTitle: primaryRoutine?.title || null,
           assignedRoutines: clientRoutines,
-          completedSessionsCount: clientSessions.filter((s) => s.status === 'completed').length,
+          completedSessionsCount: completedSessions.length,
           clientCode: code,
         };
       });
 
-      // Ordenar para la visualización: primero los que están en línea, luego los más activos recientemente
+      // Ordenar para la visualización: primero los que están en línea / entrenando, luego los más activos recientemente
       enriched.sort((a, b) => {
         if (a.activityInfo.isOnline && !b.activityInfo.isOnline) return -1;
         if (!a.activityInfo.isOnline && b.activityInfo.isOnline) return 1;
@@ -366,6 +384,78 @@ export default function AdminClientsDirectoryPage() {
   useEffect(() => {
     loadClientsData();
   }, []);
+
+  // Suscripción Realtime para detectar cuando un alumno abre/cierra la pantalla o inicia sesión
+  useEffect(() => {
+    const presenceChannel = supabase.channel('online-presence');
+
+    presenceChannel
+      .on('presence', { event: 'sync' }, () => {
+        const state = presenceChannel.presenceState();
+        const onlineSet = new Set<string>();
+        const trainingSet = new Set<string>();
+
+        Object.values(state).forEach((presences: any) => {
+          presences.forEach((p: any) => {
+            if (p.client_id && p.screen_open) {
+              onlineSet.add(p.client_id);
+              if (p.is_training) {
+                trainingSet.add(p.client_id);
+              }
+            }
+          });
+        });
+
+        setRealtimeOnlineIds(onlineSet);
+        setRealtimeTrainingIds(trainingSet);
+      })
+      .subscribe();
+
+    // También escuchar inserciones y actualizaciones en workout_sessions para reflejar inicios y fines de sesión
+    const sessionsChannel = supabase
+      .channel('admin-clients-sessions-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'workout_sessions' },
+        () => {
+          loadClientsData();
+        }
+      )
+      .subscribe();
+
+    // Actualizador periódico cada 30 segundos para refrescar tiempos relativos y heartbeats
+    const interval = setInterval(() => {
+      loadClientsData();
+    }, 30000);
+
+    return () => {
+      supabase.removeChannel(presenceChannel);
+      supabase.removeChannel(sessionsChannel);
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Actualizar reactivamente la actividad de los alumnos en pantalla cuando cambia la presencia
+  useEffect(() => {
+    setClients((prevClients) =>
+      prevClients.map((c) => {
+        const isOnline = realtimeOnlineIds.has(c.id);
+        const isTraining = realtimeTrainingIds.has(c.id);
+        const activeSession = isRecentActiveWorkout(c.latestSession) ? c.latestSession : null;
+        const newActivityInfo = getClientActivityInfo(c, {
+          activeSession,
+          latestCompletedSession: !activeSession ? c.latestSession : null,
+          isRealtimeOnline: isOnline,
+          isRealtimeTraining: isTraining,
+        });
+
+        return {
+          ...c,
+          activityInfo: newActivityInfo,
+        };
+      })
+    );
+  }, [realtimeOnlineIds, realtimeTrainingIds]);
 
   // Filtrado dinámico
   const filteredClients = useMemo(() => {
