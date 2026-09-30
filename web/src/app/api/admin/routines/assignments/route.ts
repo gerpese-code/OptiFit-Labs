@@ -68,31 +68,45 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST: Asignar o Modificar rutinas activas de un cliente (soporte individual y múltiple por lotes)
+// POST: Asignar o Modificar rutinas activas de un cliente (soporte individual y múltiple por lotes de clientes y rutinas)
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { clientId, routineId, routineIds, startDate, replaceExisting } = body;
+    const { clientId, clientIds, routineId, routineIds, startDate, replaceExisting } = body;
 
-    // Normalizar a lista de IDs únicos
-    const rawIds = Array.isArray(routineIds)
+    // Normalizar a lista de IDs de clientes únicos
+    const rawClientIds = Array.isArray(clientIds)
+      ? clientIds
+      : clientId
+      ? [clientId]
+      : [];
+    const targetClientIds = Array.from(
+      new Set(
+        rawClientIds.filter(
+          (id: any) => typeof id === 'string' && id.trim() !== ''
+        )
+      )
+    );
+
+    // Normalizar a lista de IDs de rutinas únicos
+    const rawRoutineIds = Array.isArray(routineIds)
       ? routineIds
       : routineId
       ? [routineId]
       : [];
     const targetRoutineIds = Array.from(
       new Set(
-        rawIds.filter(
+        rawRoutineIds.filter(
           (id: any) => typeof id === 'string' && id.trim() !== ''
         )
       )
     );
 
-    if (!clientId || targetRoutineIds.length === 0) {
+    if (targetClientIds.length === 0 || targetRoutineIds.length === 0) {
       return NextResponse.json(
         {
           error: 'VALIDATION_ERROR',
-          message: 'clientId y al menos una rutina son obligatorios para la asignación.',
+          message: 'Al menos un alumno y al menos una rutina son obligatorios para la asignación.',
         },
         { status: 400 }
       );
@@ -106,25 +120,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Si se solicitó explícitamente reemplazar rutinas existentes, desactivarlas una sola vez antes de la carga
-    if (replaceExisting === true) {
-      const { error: deactErr } = await admin
-        .from('routines')
-        .update({ is_active: false, updated_at: new Date().toISOString() })
-        .eq('client_id', clientId);
-
-      if (deactErr) {
-        console.warn('Nota al desactivar rutinas previas:', deactErr.message);
-      }
-    }
-
-    const baseDate = startDate ? new Date(startDate) : new Date();
-    const createdRoutines: any[] = [];
-    let cumulativeDayOffset = 0;
-
-    // 2. Iterar sobre cada rutina seleccionada y clonarla para el alumno
+    // 1. Pre-cargar las rutinas origen completas (con días, ejercicios y series) una sola vez
+    const sourceRoutinesWithData: { sourceRoutine: any; sourceDays: any[] }[] = [];
     for (const rId of targetRoutineIds) {
-      // Obtener la rutina original (plantilla o maestra)
       const { data: sourceRoutine, error: sourceErr } = await admin
         .from('routines')
         .select('*')
@@ -136,7 +134,6 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // Obtener los días, ejercicios y series de la rutina origen
       const { data: sourceDays, error: daysErr } = await admin
         .from('routine_days')
         .select(`
@@ -160,113 +157,148 @@ export async function POST(req: NextRequest) {
 
       if (daysErr) throw daysErr;
 
-      // Crear la nueva rutina vinculada al cliente como ACTIVA
-      const { data: newRoutine, error: newRoutineErr } = await admin
-        .from('routines')
-        .insert({
-          client_id: clientId,
-          title: sourceRoutine.title,
-          description: sourceRoutine.description,
-          is_active: true,
-          is_template: false,
-        })
-        .select()
-        .single();
+      sourceRoutinesWithData.push({
+        sourceRoutine,
+        sourceDays: sourceDays || [],
+      });
+    }
 
-      if (newRoutineErr || !newRoutine) {
-        throw newRoutineErr || new Error(`No se pudo crear la rutina "${sourceRoutine.title}" para el cliente.`);
+    if (sourceRoutinesWithData.length === 0) {
+      return NextResponse.json(
+        { error: 'NO_ROUTINES_FOUND', message: 'No se encontraron las rutinas especificadas.' },
+        { status: 404 }
+      );
+    }
+
+    const baseDate = startDate ? new Date(startDate) : new Date();
+    const allCreatedRoutines: any[] = [];
+
+    // 2. Iterar sobre cada alumno objetivo
+    for (const currentClientId of targetClientIds) {
+      // Si se solicitó reemplazar rutinas previas para este alumno
+      if (replaceExisting === true) {
+        const { error: deactErr } = await admin
+          .from('routines')
+          .update({ is_active: false, updated_at: new Date().toISOString() })
+          .eq('client_id', currentClientId);
+
+        if (deactErr) {
+          console.warn(`Nota al desactivar rutinas previas del alumno ${currentClientId}:`, deactErr.message);
+        }
       }
 
-      createdRoutines.push(newRoutine);
+      let cumulativeDayOffset = 0;
 
-      // Replicar días, ejercicios y series
-      if (sourceDays && sourceDays.length > 0) {
-        for (let dIdx = 0; dIdx < sourceDays.length; dIdx++) {
-          const sDay = sourceDays[dIdx];
+      // Iterar sobre cada rutina y clonarla para el alumno
+      for (const { sourceRoutine, sourceDays } of sourceRoutinesWithData) {
+        const { data: newRoutine, error: newRoutineErr } = await admin
+          .from('routines')
+          .insert({
+            client_id: currentClientId,
+            title: sourceRoutine.title,
+            description: sourceRoutine.description,
+            is_active: true,
+            is_template: false,
+          })
+          .select()
+          .single();
 
-          // Insertar día de la rutina
-          const dayPayload = {
-            routine_id: newRoutine.id,
-            name: sDay.name,
-            day_number: sDay.day_number,
-            order_index: sDay.order_index,
-          };
+        if (newRoutineErr || !newRoutine) {
+          throw newRoutineErr || new Error(`No se pudo crear la rutina "${sourceRoutine.title}" para el cliente.`);
+        }
 
-          const { data: newDay, error: newDayErr } = await admin
-            .from('routine_days')
-            .insert(dayPayload)
-            .select()
-            .single();
+        allCreatedRoutines.push(newRoutine);
 
-          if (newDayErr) throw newDayErr;
+        // Replicar días, ejercicios y series
+        if (sourceDays && sourceDays.length > 0) {
+          for (let dIdx = 0; dIdx < sourceDays.length; dIdx++) {
+            const sDay = sourceDays[dIdx];
 
-          // Planificar sesión de entrenamiento inicial para este día
-          const sessionDate = new Date(baseDate);
-          sessionDate.setDate(sessionDate.getDate() + cumulativeDayOffset + dIdx);
+            const dayPayload = {
+              routine_id: newRoutine.id,
+              name: sDay.name,
+              day_number: sDay.day_number,
+              order_index: sDay.order_index,
+            };
 
-          await admin.from('workout_sessions').insert({
-            client_id: clientId,
-            routine_day_id: newDay.id,
-            scheduled_date: sessionDate.toISOString().split('T')[0],
-            status: 'missed',
-            completion_rate: 0.0,
-          });
-
-          // Insertar ejercicios y sets
-          const exercises = (sDay as any).routine_exercises || [];
-          for (const sEx of exercises) {
-            const { data: newEx, error: newExErr } = await admin
-              .from('routine_exercises')
-              .insert({
-                routine_day_id: newDay.id,
-                exercise_id: sEx.exercise_id,
-                order_index: sEx.order_index,
-                notes: sEx.notes,
-              })
+            const { data: newDay, error: newDayErr } = await admin
+              .from('routine_days')
+              .insert(dayPayload)
               .select()
               .single();
 
-            if (newExErr) throw newExErr;
+            if (newDayErr) throw newDayErr;
 
-            const sets = sEx.routine_exercise_sets || [];
-            if (sets.length > 0) {
-              const setsPayload = sets.map((s: any) => ({
-                routine_exercise_id: newEx.id,
-                set_number: s.set_number,
-                target_reps: s.target_reps,
-                target_weight_kg: s.target_weight_kg,
-                target_rpe: s.target_rpe,
-                rest_seconds: s.rest_seconds,
-              }));
+            // Planificar sesión de entrenamiento inicial para este día
+            const sessionDate = new Date(baseDate);
+            sessionDate.setDate(sessionDate.getDate() + cumulativeDayOffset + dIdx);
 
-              const { error: setsErr } = await admin
-                .from('routine_exercise_sets')
-                .insert(setsPayload);
+            await admin.from('workout_sessions').insert({
+              client_id: currentClientId,
+              routine_day_id: newDay.id,
+              scheduled_date: sessionDate.toISOString().split('T')[0],
+              status: 'missed',
+              completion_rate: 0.0,
+            });
 
-              if (setsErr) throw setsErr;
+            // Insertar ejercicios y sets
+            const exercises = sDay.routine_exercises || [];
+            for (const sEx of exercises) {
+              const { data: newEx, error: newExErr } = await admin
+                .from('routine_exercises')
+                .insert({
+                  routine_day_id: newDay.id,
+                  exercise_id: sEx.exercise_id,
+                  order_index: sEx.order_index,
+                  notes: sEx.notes,
+                })
+                .select()
+                .single();
+
+              if (newExErr) throw newExErr;
+
+              const sets = sEx.routine_exercise_sets || [];
+              if (sets.length > 0) {
+                const setsPayload = sets.map((s: any) => ({
+                  routine_exercise_id: newEx.id,
+                  set_number: s.set_number,
+                  target_reps: s.target_reps,
+                  target_weight_kg: s.target_weight_kg,
+                  target_rpe: s.target_rpe,
+                  rest_seconds: s.rest_seconds,
+                }));
+
+                const { error: setsErr } = await admin
+                  .from('routine_exercise_sets')
+                  .insert(setsPayload);
+
+                if (setsErr) throw setsErr;
+              }
             }
           }
+          cumulativeDayOffset += sourceDays.length;
         }
-        cumulativeDayOffset += sourceDays.length;
       }
     }
 
-    if (createdRoutines.length === 0) {
+    if (allCreatedRoutines.length === 0) {
       return NextResponse.json(
         { error: 'NO_ROUTINES_ASSIGNED', message: 'No se pudo asignar ninguna de las rutinas seleccionadas.' },
         { status: 400 }
       );
     }
 
-    const titles = createdRoutines.map((r) => `"${r.title}"`).join(', ');
+    const titles = Array.from(new Set(sourceRoutinesWithData.map((s) => `"${s.sourceRoutine.title}"`))).join(', ');
     return NextResponse.json({
       success: true,
-      message: `${createdRoutines.length} ${
-        createdRoutines.length === 1 ? 'rutina asignada' : 'rutinas asignadas'
-      } con éxito al alumno (${titles}).`,
-      count: createdRoutines.length,
-      routines: createdRoutines,
-      routine: createdRoutines[0],
+      message: `${allCreatedRoutines.length} ${
+        allCreatedRoutines.length === 1 ? 'rutina asignada' : 'rutinas asignadas'
+      } con éxito (${titles}) a ${targetClientIds.length} ${
+        targetClientIds.length === 1 ? 'alumno' : 'alumnos'
+      }.`,
+      count: allCreatedRoutines.length,
+      routines: allCreatedRoutines,
+      routine: allCreatedRoutines[0],
     });
   } catch (err: any) {
     console.error('Error al asignar rutina(s) al cliente:', err);

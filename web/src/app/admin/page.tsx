@@ -93,10 +93,11 @@ export default function AdminDashboardPage() {
 
         setExercisesCount(exCount || 0);
 
-        // 4. Conteo de rutinas
+        // 4. Conteo de rutinas maestras (plantillas de biblioteca)
         const { count: rtCount } = await supabase
           .from('routines')
-          .select('*', { count: 'exact', head: true });
+          .select('*', { count: 'exact', head: true })
+          .is('client_id', null);
 
         setRoutinesCount(rtCount || 0);
 
