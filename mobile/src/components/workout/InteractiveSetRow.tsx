@@ -30,7 +30,7 @@ interface InteractiveSetRowProps {
   onChangeSuperset?: (isSuperset: boolean, count: number, reps: number[], weightsKg?: number[]) => void;
 }
 
-export default function InteractiveSetRow({
+function InteractiveSetRow({
   set,
   isCompleted,
   onComplete,
@@ -962,4 +962,17 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#f59e0b',
   },
+});
+
+export default React.memo(InteractiveSetRow, (prev, next) => {
+  if (prev.isCompleted !== next.isCompleted) return false;
+  if (prev.set.id !== next.set.id) return false;
+  if (prev.set.target_reps !== next.set.target_reps) return false;
+  if (prev.set.target_weight_kg !== next.set.target_weight_kg) return false;
+  if (prev.set.is_superset !== next.set.is_superset) return false;
+  if (prev.set.superset_count !== next.set.superset_count) return false;
+  if (prev.set.rest_seconds !== next.set.rest_seconds) return false;
+  if (JSON.stringify(prev.set.superset_reps) !== JSON.stringify(next.set.superset_reps)) return false;
+  if (JSON.stringify(prev.set.superset_weights_kg) !== JSON.stringify(next.set.superset_weights_kg)) return false;
+  return true;
 });

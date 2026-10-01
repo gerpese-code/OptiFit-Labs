@@ -327,9 +327,13 @@ export default function EditRoutinePage() {
     setDays(updated);
   };
 
-  const handleSelectExerciseForDay = (exerciseId: string) => {
+  const handleSelectExerciseForDay = (exerciseId: string, exerciseObject?: Exercise) => {
     if (selectorTargetDayIndex === null || !exerciseId) return;
-    const found = availableExercises.find((e) => e.id === exerciseId);
+    const found = exerciseObject || availableExercises.find((e) => e.id === exerciseId);
+
+    if (exerciseObject) {
+      setAvailableExercises((prev) => (prev.some((e) => e.id === exerciseObject.id) ? prev : [exerciseObject, ...prev]));
+    }
 
     const defaultKg = 20;
     const defaultLbs = Math.round(defaultKg * LBS_PER_KG);
@@ -544,8 +548,8 @@ export default function EditRoutinePage() {
     await syncExerciseMediaToDatabase(ex.exercise_id, ex.custom_name, ex.muscle_group, ex.notes, [], ex.gif_url, ex.video_url);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSave = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!title.trim()) {
       setErrorMsg('El título de la rutina es obligatorio.');
       return;
@@ -792,7 +796,7 @@ export default function EditRoutinePage() {
   }
 
   return (
-    <form noValidate onSubmit={handleSave} className="space-y-6 max-w-5xl pb-20">
+    <div className="space-y-6 max-w-5xl pb-20">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <Link
@@ -817,7 +821,8 @@ export default function EditRoutinePage() {
         </div>
 
         <button
-          type="submit"
+          type="button"
+          onClick={() => handleSave()}
           disabled={saving}
           className="inline-flex items-center px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/20 transition disabled:opacity-50"
         >
@@ -1277,6 +1282,37 @@ export default function EditRoutinePage() {
         ))}
       </div>
 
+      {/* Barra de acción inferior */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-800">
+        <button
+          type="button"
+          onClick={handleAddDay}
+          className="w-full sm:w-auto text-xs font-bold text-emerald-400 hover:text-emerald-300 flex items-center justify-center bg-emerald-950/40 border border-emerald-800/40 px-4 py-2.5 rounded-xl transition shadow-sm"
+        >
+          <Plus className="w-4 h-4 mr-1.5" />
+          + Agregar Otro Grupo Muscular
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleSave()}
+          disabled={saving}
+          className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/20 transition disabled:opacity-50"
+        >
+          {saving ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+              Guardando Cambios...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4 mr-1.5" />
+              Guardar Cambios
+            </>
+          )}
+        </button>
+      </div>
+
       {mediaTarget && (() => {
         const curDay = days[mediaTarget.dayIdx];
         const curEx = curDay?.exercises[mediaTarget.exIdx];
@@ -1471,6 +1507,6 @@ export default function EditRoutinePage() {
         }}
         onRefreshExercises={loadData}
       />
-    </form>
+    </div>
   );
 }

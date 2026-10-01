@@ -24,7 +24,7 @@ interface ExerciseSelectorModalProps {
   isOpen: boolean;
   onClose: () => void;
   exercises: Exercise[];
-  onSelectExercise: (exerciseId: string) => void;
+  onSelectExercise: (exerciseId: string, exerciseObject?: Exercise) => void;
   onExerciseCreated: (newExercise: Exercise) => void;
   onRefreshExercises: () => Promise<void>;
   initialMuscleGroup?: string;
@@ -59,9 +59,11 @@ export default function ExerciseSelectorModal({
 
   const [search, setSearch] = useState('');
   const [selectedMuscle, setSelectedMuscle] = useState(initialMuscleGroup || 'Todos');
+  const [visibleCount, setVisibleCount] = useState(24);
 
   React.useEffect(() => {
     if (isOpen) {
+      setVisibleCount(24);
       if (initialMuscleGroup && MUSCLE_TABS.some(t => t.toLowerCase().includes(initialMuscleGroup.toLowerCase()) || initialMuscleGroup.toLowerCase().includes(t.toLowerCase()))) {
         const matched = MUSCLE_TABS.find(t => t.toLowerCase().includes(initialMuscleGroup.toLowerCase()) || initialMuscleGroup.toLowerCase().includes(t.toLowerCase()));
         setSelectedMuscle(matched || 'Todos');
@@ -70,6 +72,11 @@ export default function ExerciseSelectorModal({
       }
     }
   }, [isOpen, initialMuscleGroup]);
+
+  React.useEffect(() => {
+    setVisibleCount(24);
+  }, [search, selectedMuscle]);
+
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [previewExercise, setPreviewExercise] = useState<Exercise | null>(null);
@@ -195,6 +202,7 @@ export default function ExerciseSelectorModal({
               />
               {search && (
                 <button
+                  type="button"
                   onClick={() => setSearch('')}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-xs"
                 >
@@ -267,6 +275,7 @@ export default function ExerciseSelectorModal({
               <Search className="w-8 h-8 text-gray-600" />
               <p>No se encontraron ejercicios para "{search}".</p>
               <button
+                type="button"
                 onClick={() => setIsQuickCreateOpen(true)}
                 className="text-emerald-400 hover:underline font-bold text-xs"
               >
@@ -274,102 +283,117 @@ export default function ExerciseSelectorModal({
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filtered.map((ex) => {
-                const hasImages = ex.image_urls && ex.image_urls.length > 0;
-                const isHovered = hoveredExId === ex.id;
-                // Si el usuario pasa el mouse por encima, mostramos la imagen 2 (contracción) si existe
-                const displayImg = isHovered && hasImages && ex.image_urls.length > 1
-                  ? ex.image_urls[1]
-                  : (ex.gif_url || (hasImages ? ex.image_urls[0] : null));
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filtered.slice(0, visibleCount).map((ex) => {
+                  const hasImages = ex.image_urls && ex.image_urls.length > 0;
+                  const isHovered = hoveredExId === ex.id;
+                  // Si el usuario pasa el mouse por encima, mostramos la imagen 2 (contracción) si existe
+                  const displayImg = isHovered && hasImages && ex.image_urls.length > 1
+                    ? ex.image_urls[1]
+                    : (ex.gif_url || (hasImages ? ex.image_urls[0] : null));
 
-                return (
-                  <div
-                    key={ex.id}
-                    onMouseEnter={() => setHoveredExId(ex.id)}
-                    onMouseLeave={() => setHoveredExId(null)}
-                    className="bg-gray-950 border border-gray-800 hover:border-emerald-600/50 rounded-2xl overflow-hidden flex flex-col justify-between group transition shadow-md hover:shadow-xl hover:shadow-emerald-950/20"
-                  >
-                    {/* Miniatura de Técnica de Ejecución */}
-                    <div className="relative aspect-[16/10] bg-gray-900 border-b border-gray-800/80 overflow-hidden flex items-center justify-center">
-                      {displayImg ? (
-                        <img
-                          src={displayImg}
-                          alt={ex.name}
-                          loading="lazy"
-                          className="w-full h-full object-cover transition duration-300 group-hover:scale-105"
-                        />
-                      ) : (
-                        <div className="flex flex-col items-center justify-center text-gray-600 p-4">
-                          <ImageIcon className="w-8 h-8 mb-1 opacity-50" />
-                          <span className="text-[10px]">Sin imagen</span>
-                        </div>
-                      )}
+                  return (
+                    <div
+                      key={ex.id}
+                      onMouseEnter={() => setHoveredExId(ex.id)}
+                      onMouseLeave={() => setHoveredExId(null)}
+                      className="bg-gray-950 border border-gray-800 hover:border-emerald-600/50 rounded-2xl overflow-hidden flex flex-col justify-between group transition shadow-md hover:shadow-xl hover:shadow-emerald-950/20"
+                    >
+                      {/* Miniatura de Técnica de Ejecución */}
+                      <div className="relative aspect-[16/10] bg-gray-900 border-b border-gray-800/80 overflow-hidden flex items-center justify-center">
+                        {displayImg ? (
+                          <img
+                            src={displayImg}
+                            alt={ex.name}
+                            loading="lazy"
+                            className="w-full h-full object-cover transition duration-300 group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center text-gray-600 p-4">
+                            <ImageIcon className="w-8 h-8 mb-1 opacity-50" />
+                            <span className="text-[10px]">Sin imagen</span>
+                          </div>
+                        )}
 
-                      {/* Pill de Grupo Muscular */}
-                      <span className="absolute top-2 left-2 text-[10px] font-black text-emerald-300 bg-gray-950/90 backdrop-blur border border-emerald-800/50 px-2 py-0.5 rounded-lg uppercase tracking-wider shadow">
-                        {ex.muscle_group}
-                      </span>
-
-                      {/* Indicador de 2 fases (Inicio/Fin) */}
-                      {hasImages && ex.image_urls.length > 1 && (
-                        <span className="absolute bottom-2 left-2 text-[9px] font-bold text-gray-300 bg-gray-950/80 backdrop-blur px-1.5 py-0.5 rounded border border-gray-800">
-                          {isHovered ? 'Fase: Contracción' : 'Fase: Inicio (Pasa el cursor)'}
+                        {/* Pill de Grupo Muscular */}
+                        <span className="absolute top-2 left-2 text-[10px] font-black text-emerald-300 bg-gray-950/90 backdrop-blur border border-emerald-800/50 px-2 py-0.5 rounded-lg uppercase tracking-wider shadow">
+                          {ex.muscle_group}
                         </span>
-                      )}
 
-                      {/* Botón Flotante para Ver Técnica en Grande */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPreviewExercise(ex);
-                        }}
-                        className="absolute top-2 right-2 p-1.5 rounded-lg bg-gray-950/80 hover:bg-emerald-600 text-gray-300 hover:text-white border border-gray-800 transition"
-                        title="Ver técnica y postura completa"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                        {/* Indicador de 2 fases (Inicio/Fin) */}
+                        {hasImages && ex.image_urls.length > 1 && (
+                          <span className="absolute bottom-2 left-2 text-[9px] font-bold text-gray-300 bg-gray-950/80 backdrop-blur px-1.5 py-0.5 rounded border border-gray-800">
+                            {isHovered ? 'Fase: Contracción' : 'Fase: Inicio (Pasa el cursor)'}
+                          </span>
+                        )}
 
-                    {/* Contenido de Información */}
-                    <div className="p-3.5 space-y-2 flex-1 flex flex-col justify-between">
-                      <div>
-                        <h4 className="font-bold text-white text-xs group-hover:text-emerald-400 transition line-clamp-1">
-                          {ex.name}
-                        </h4>
-                        <p className="text-[11px] text-gray-400 line-clamp-2 leading-relaxed mt-1">
-                          {ex.description || 'Sin notas descriptivas.'}
-                        </p>
-                      </div>
-
-                      {/* Acciones */}
-                      <div className="mt-2.5 pt-2 border-t border-gray-800/80 flex items-center justify-between">
+                        {/* Botón Flotante para Ver Técnica en Grande */}
                         <button
                           type="button"
-                          onClick={() => setPreviewExercise(ex)}
-                          className="text-[11px] text-gray-400 hover:text-emerald-400 font-medium flex items-center space-x-1"
-                        >
-                          <Info className="w-3 h-3" />
-                          <span>Detalles</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onSelectExercise(ex.id);
-                            onClose();
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewExercise(ex);
                           }}
-                          className="inline-flex items-center space-x-1 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-gray-950 text-xs font-black rounded-xl shadow transition"
+                          className="absolute top-2 right-2 p-1.5 rounded-lg bg-gray-950/80 hover:bg-emerald-600 text-gray-300 hover:text-white border border-gray-800 transition"
+                          title="Ver técnica y postura completa"
                         >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Añadir</span>
+                          <Eye className="w-3.5 h-3.5" />
                         </button>
                       </div>
+
+                      {/* Contenido de Información */}
+                      <div className="p-3.5 space-y-2 flex-1 flex flex-col justify-between">
+                        <div>
+                          <h4 className="font-bold text-white text-xs group-hover:text-emerald-400 transition line-clamp-1">
+                            {ex.name}
+                          </h4>
+                          <p className="text-[11px] text-gray-400 line-clamp-2 leading-relaxed mt-1">
+                            {ex.description || 'Sin notas descriptivas.'}
+                          </p>
+                        </div>
+
+                        {/* Acciones */}
+                        <div className="mt-2.5 pt-2 border-t border-gray-800/80 flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewExercise(ex)}
+                            className="text-[11px] text-gray-400 hover:text-emerald-400 font-medium flex items-center space-x-1"
+                          >
+                            <Info className="w-3 h-3" />
+                            <span>Detalles</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onSelectExercise(ex.id, ex);
+                              onClose();
+                            }}
+                            className="inline-flex items-center space-x-1 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-gray-950 text-xs font-black rounded-xl shadow transition"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Añadir</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+
+              {/* Botón de Cargar Más si hay más ejercicios de los visibles */}
+              {filtered.length > visibleCount && (
+                <div className="py-3 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount((prev) => prev + 24)}
+                    className="px-6 py-2.5 bg-gray-950 hover:bg-gray-800 border border-gray-800 hover:border-emerald-500/50 text-emerald-400 rounded-xl text-xs font-bold transition shadow-lg"
+                  >
+                    ⚡ Cargar más ejercicios (+24) — Mostrando {Math.min(visibleCount, filtered.length)} de {filtered.length}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -476,7 +500,7 @@ export default function ExerciseSelectorModal({
               <button
                 type="button"
                 onClick={() => {
-                  onSelectExercise(previewExercise.id);
+                  onSelectExercise(previewExercise.id, previewExercise);
                   setPreviewExercise(null);
                   onClose();
                 }}
@@ -496,7 +520,7 @@ export default function ExerciseSelectorModal({
         onClose={() => setIsQuickCreateOpen(false)}
         onSuccess={(newEx) => {
           onExerciseCreated(newEx);
-          onSelectExercise(newEx.id);
+          onSelectExercise(newEx.id, newEx);
           setIsQuickCreateOpen(false);
           onClose();
         }}

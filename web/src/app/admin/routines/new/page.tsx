@@ -82,6 +82,12 @@ function NewRoutineContent() {
   const [mediaTarget, setMediaTarget] = useState<{ dayIdx: number; exIdx: number } | null>(null);
   const [mediaUploadLoading, setMediaUploadLoading] = useState(false);
 
+  const DRAFT_STORAGE_KEY = clientId
+    ? `@fitnesspro_draft_new_routine_client_${clientId}`
+    : '@fitnesspro_draft_new_routine';
+
+  const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
+
   const [days, setDays] = useState<DraftDay[]>([
     {
       name: 'Pecho',
@@ -90,6 +96,80 @@ function NewRoutineContent() {
       exercises: [],
     },
   ]);
+
+  // Recuperar borrador automático de localStorage al entrar
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (
+          parsed &&
+          (parsed.title ||
+            (parsed.days && parsed.days.some((d: any) => d.exercises?.length > 0)))
+        ) {
+          if (parsed.title) setTitle(parsed.title);
+          if (parsed.description) setDescription(parsed.description);
+          if (parsed.days && parsed.days.length > 0) setDays(parsed.days);
+          if (typeof parsed.isTemplate === 'boolean' && !clientId) {
+            setIsTemplate(parsed.isTemplate);
+          }
+          setHasRestoredDraft(true);
+        }
+      }
+    } catch (e) {
+      console.warn('No se pudo recuperar borrador previo:', e);
+    }
+  }, [DRAFT_STORAGE_KEY, clientId]);
+
+  // Auto-guardar borrador continuamente en localStorage ante cualquier cambio
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const hasContent =
+        title.trim() !== '' ||
+        description.trim() !== '' ||
+        days.some((d) => d.exercises.length > 0);
+
+      if (hasContent) {
+        localStorage.setItem(
+          DRAFT_STORAGE_KEY,
+          JSON.stringify({
+            title,
+            description,
+            isTemplate,
+            days,
+            updatedAt: Date.now(),
+          })
+        );
+      }
+    } catch (e) {
+      console.warn('No se pudo guardar borrador local:', e);
+    }
+  }, [title, description, isTemplate, days, DRAFT_STORAGE_KEY]);
+
+  const handleDiscardDraft = () => {
+    if (
+      !confirm(
+        '¿Deseas descartar el borrador recuperado y comenzar con una rutina limpia?'
+      )
+    )
+      return;
+    try {
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+    } catch {}
+    setTitle('');
+    setDescription('');
+    setDays([
+      {
+        name: 'Pecho',
+        muscle_group: 'Pecho',
+        day_number: 1,
+        exercises: [],
+      },
+    ]);
+    setHasRestoredDraft(false);
+  };
 
   const loadExercises = async () => {
     try {
@@ -191,9 +271,13 @@ function NewRoutineContent() {
   };
 
   // Añadir ejercicio con valores por defecto y autoconversión de KG / LBS
-  const handleSelectExerciseForDay = (exerciseId: string) => {
+  const handleSelectExerciseForDay = (exerciseId: string, exerciseObject?: Exercise) => {
     if (selectorTargetDayIndex === null || !exerciseId) return;
-    const found = availableExercises.find((e) => e.id === exerciseId);
+    const found = exerciseObject || availableExercises.find((e) => e.id === exerciseId);
+
+    if (exerciseObject) {
+      setAvailableExercises((prev) => (prev.some((e) => e.id === exerciseObject.id) ? prev : [exerciseObject, ...prev]));
+    }
 
     const defaultKg = 20;
     const defaultLbs = Math.round(defaultKg * LBS_PER_KG);
@@ -411,8 +495,8 @@ function NewRoutineContent() {
     await syncExerciseMediaToDatabase(ex.exercise_id, ex.custom_name, ex.muscle_group, ex.notes, [], ex.gif_url, ex.video_url);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!title.trim()) {
       setErrorMsg('El título de la rutina es obligatorio.');
       return;
@@ -525,6 +609,11 @@ function NewRoutineContent() {
         }
       }
 
+      // Borrar borrador local una vez guardado con éxito en la base de datos
+      try {
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+      } catch {}
+
       if (clientId) {
         router.push(`/admin/clients/${clientId}`);
       } else {
@@ -539,7 +628,7 @@ function NewRoutineContent() {
   };
 
   return (
-    <form noValidate onSubmit={handleSubmit} className="space-y-6 max-w-5xl pb-20">
+    <div className="space-y-6 max-w-5xl pb-20">
       {/* Top action bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
@@ -565,7 +654,8 @@ function NewRoutineContent() {
         </div>
 
         <button
-          type="submit"
+          type="button"
+          onClick={() => handleSubmit()}
           disabled={saving}
           className="inline-flex items-center px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/20 transition disabled:opacity-50"
         >
@@ -582,6 +672,24 @@ function NewRoutineContent() {
           )}
         </button>
       </div>
+
+      {hasRestoredDraft && (
+        <div className="p-3.5 bg-amber-950/40 border border-amber-500/50 rounded-xl flex items-center justify-between text-xs text-amber-300 shadow-md">
+          <div className="flex items-center space-x-2">
+            <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>
+              <strong>Borrador recuperado automáticamente:</strong> Se han restaurado los datos y ejercicios que estabas editando para que no pierdas nada.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleDiscardDraft}
+            className="ml-4 px-2.5 py-1 bg-amber-900/60 hover:bg-amber-800 text-amber-200 rounded-lg font-semibold transition whitespace-nowrap"
+          >
+            Descartar borrador
+          </button>
+        </div>
+      )}
 
       {errorMsg && (
         <div className="p-3 bg-red-950/50 border border-red-500/50 rounded-xl text-xs text-red-300">
@@ -1036,6 +1144,37 @@ function NewRoutineContent() {
         ))}
       </div>
 
+      {/* Barra de acción inferior */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-800">
+        <button
+          type="button"
+          onClick={handleAddDay}
+          className="w-full sm:w-auto text-xs font-bold text-emerald-400 hover:text-emerald-300 flex items-center justify-center bg-emerald-950/40 border border-emerald-800/40 px-4 py-2.5 rounded-xl transition shadow-sm"
+        >
+          <Plus className="w-4 h-4 mr-1.5" />
+          + Agregar Otro Grupo Muscular
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleSubmit()}
+          disabled={saving}
+          className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/20 transition disabled:opacity-50"
+        >
+          {saving ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+              Guardando Rutina...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4 mr-1.5" />
+              Guardar Rutina Completa
+            </>
+          )}
+        </button>
+      </div>
+
       {/* Modal para adjuntar multimedia a un ejercicio en la rutina */}
       {mediaTarget && (() => {
         const curDay = days[mediaTarget.dayIdx];
@@ -1232,7 +1371,7 @@ function NewRoutineContent() {
         }}
         onRefreshExercises={loadExercises}
       />
-    </form>
+    </div>
   );
 }
 

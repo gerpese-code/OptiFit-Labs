@@ -115,6 +115,7 @@ export default function ExerciseFormModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     if (!name.trim()) {
       setErrorMsg('El nombre del ejercicio es obligatorio.');
       return;
@@ -194,6 +195,7 @@ export default function ExerciseFormModal({
             </p>
           </div>
           <button
+            type="button"
             onClick={() => {
               resetForm();
               onClose();

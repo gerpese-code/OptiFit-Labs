@@ -129,6 +129,40 @@ interface WorkingExerciseItem {
   sets: WorkingSetItem[];
 }
 
+const LiveSessionClock = React.memo(function LiveSessionClock({
+  sessionStartTime,
+}: {
+  sessionStartTime: number | null;
+}) {
+  const [elapsed, setElapsed] = useState(() =>
+    sessionStartTime ? Math.max(0, Math.floor((Date.now() - sessionStartTime) / 1000)) : 0
+  );
+
+  useEffect(() => {
+    if (!sessionStartTime) {
+      setElapsed(0);
+      return;
+    }
+    const update = () => {
+      setElapsed(Math.max(0, Math.floor((Date.now() - sessionStartTime) / 1000)));
+    };
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [sessionStartTime]);
+
+  const m = Math.floor(elapsed / 60);
+  const s = elapsed % 60;
+  const formatted = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+
+  return (
+    <View style={styles.liveClock}>
+      <Clock size={14} color="#34d399" style={{ marginRight: 4 }} />
+      <Text style={styles.clockText}>{formatted}</Text>
+    </View>
+  );
+});
+
 export default function WorkoutScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
@@ -391,14 +425,16 @@ export default function WorkoutScreen() {
 
   useEffect(() => {
     if (isSessionActive && sessionStartTime) {
+      let tickCount = 0;
       timerRef.current = setInterval(() => {
-        setElapsedSeconds(Math.floor((Date.now() - sessionStartTime) / 1000));
         if (isRestingRef.current) {
-          setTotalRestSeconds((prev) => {
-            const next = prev + 1;
-            totalRestSecondsRef.current = next;
-            return next;
-          });
+          totalRestSecondsRef.current += 1;
+        }
+        tickCount += 1;
+        // Solo actualizamos el estado raíz cada 15s para sincronización y calorías.
+        // El reloj visual por segundo corre de forma aislada y fluida en <LiveSessionClock />
+        if (tickCount % 15 === 0) {
+          setElapsedSeconds(Math.floor((Date.now() - sessionStartTime) / 1000));
         }
       }, 1000);
     } else {
@@ -2008,13 +2044,18 @@ export default function WorkoutScreen() {
     if (!todayDay) return;
     touchUserActivity(user?.id);
 
-    const stats = computeCurrentSessionStats(completedSets, cardioActivities, elapsedSeconds);
+    const finalElapsed = sessionStartTime
+      ? Math.max(1, Math.floor((Date.now() - sessionStartTime) / 1000))
+      : Math.max(1, elapsedSeconds);
+    const finalRest = totalRestSecondsRef.current;
+
+    const stats = computeCurrentSessionStats(completedSets, cardioActivities, finalElapsed);
     const finishDate = new Date().toISOString();
     const todayDateStr = finishDate.split('T')[0];
 
     // Desglose exacto de los 3 tiempos
-    const totalDurationMin = Math.max(1, Math.round(elapsedSeconds / 60));
-    const restMin = Math.round(totalRestSeconds / 60);
+    const totalDurationMin = Math.max(1, Math.round(finalElapsed / 60));
+    const restMin = Math.round(finalRest / 60);
     const exerciseMin = Math.max(0, totalDurationMin - restMin);
 
     const currentMg = selectedMuscleGroup || todayDay.muscle_group || null;
@@ -2104,9 +2145,9 @@ export default function WorkoutScreen() {
       notes: JSON.stringify({
         dayName: todayDay.name,
         muscle_group: currentMg,
-        total_seconds: elapsedSeconds,
-        exercise_seconds: Math.max(0, elapsedSeconds - totalRestSeconds),
-        rest_seconds: totalRestSeconds,
+        total_seconds: finalElapsed,
+        exercise_seconds: Math.max(0, finalElapsed - finalRest),
+        rest_seconds: finalRest,
         total_minutes: totalDurationMin,
         exercise_minutes: exerciseMin,
         rest_minutes: restMin,
@@ -2981,10 +3022,7 @@ export default function WorkoutScreen() {
 
               {isSessionActive ? (
                 <View style={styles.activeTimerSection}>
-                  <View style={styles.liveClock}>
-                    <Clock size={14} color="#34d399" style={{ marginRight: 4 }} />
-                    <Text style={styles.clockText}>{formatElapsed(elapsedSeconds)}</Text>
-                  </View>
+                  <LiveSessionClock sessionStartTime={sessionStartTime} />
                   <TouchableOpacity
                     style={styles.finishBtn}
                     onPress={handleFinishSession}
